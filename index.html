@@ -1,0 +1,3668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F6F1E7">
+<meta name="description" content="The Content Deck: 100 lifestyle content prompts with shot lists, a Batch Day planner, and an editing timer for TikTok and Instagram.">
+<title>The Content Deck</title>
+
+<!--
+  =====================================================================
+  THE CONTENT DECK
+  A single-file web app. Everything (design, content, and logic) lives
+  in this one file, so you can host it free on GitHub Pages.
+
+  HOW THIS FILE IS ORGANIZED
+    1. <style>   ...  the look (colors, fonts, layout, animations)
+    2. <body>    ...  the screens: Home, Deck, Batch Day, Editing Timer,
+                      Saved, and Settings
+    3. <script>  ...  the content (all the prompt cards) + how it works
+
+  THE PART YOU'LL EDIT MOST: the "CARD CONTENT" section near the top
+  of the <script>. That's where every bucket and prompt lives.
+  =====================================================================
+-->
+
+<!-- Google Fonts: Fraunces (headlines), DM Sans (text), DM Mono (timer) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,500..800,100&family=DM+Sans:opsz,wght@9..40,400..700&family=DM+Mono:wght@500&display=swap">
+
+<style>
+/* =====================================================================
+   1. DESIGN TOKENS
+   Change a color here and it updates everywhere in the app.
+   ===================================================================== */
+:root {
+  color-scheme: light;
+
+  /* --- Farmhouse naturals --- */
+  --linen: #F6F1E7;      /* app background */
+  --milk: #FFFCF6;       /* cards and panels */
+  --oat: #EDE4D3;        /* tabs, tags, cards stacked behind */
+  --burlap: #E0D5C2;     /* thin borders */
+  --espresso: #2E2621;   /* headlines and main buttons */
+  --walnut: #6F6459;     /* body text */
+  --driftwood: #7D7062;  /* small labels and hints */
+  --barn-red: #C2412D;   /* countdown warning (under 15 minutes) */
+
+  /* --- Bucket pops: bright fill + deeper version for colored text --- */
+  --teach: #6F9BD8;   --teach-d: #3A68AD;   /* Cornflower */
+  --behind: #E8735A;  --behind-d: #B94A33;  /* Poppy */
+  --story: #D9739B;   --story-d: #A8466F;   /* Peony */
+  --trend: #7FAF8A;   --trend-d: #46714F;   /* Sage */
+  --offer: #E9B54A;   --offer-d: #8F6512;   /* Marigold */
+  --inbound: #6CB8B4; --inbound-d: #2E726E; /* Robin's Egg */
+  --yap: #A98BC9;     --yap-d: #6E4F93;     /* Lavender (Yap Ideas deck) */
+
+  /* --- Fonts (each has a backup in case Google Fonts is slow) --- */
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-body: "DM Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* --- Shapes and shadows --- */
+  --radius-card: 20px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 0 var(--burlap), 0 12px 28px -16px rgba(46, 38, 33, .28);
+
+  /* --- Motion --- */
+  --flip-speed: 700ms;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* =====================================================================
+   2. BASE STYLES
+   ===================================================================== */
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  background: var(--linen);
+  color: var(--espresso);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+
+/* Fraunces' "SOFT" setting gives the rounded farmhouse feel */
+.display {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 100;
+  letter-spacing: -.015em;
+}
+
+button { font: inherit; color: inherit; cursor: pointer; }
+
+/* A clear focus ring for keyboard users */
+:focus-visible { outline: 2px solid var(--espresso); outline-offset: 3px; }
+
+/* Hide things visually but keep them readable by screen readers */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+[hidden] { display: none !important; }
+
+/* =====================================================================
+   3. APP LAYOUT
+   The app is phone-width and centered on bigger screens.
+   ===================================================================== */
+.app {
+  max-width: 440px;
+  margin: 0 auto;
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 20px calc(110px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.view { display: flex; flex-direction: column; gap: 16px; }
+
+/* Small uppercase label used all over the app */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--driftwood);
+}
+
+.row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.muted { color: var(--walnut); }
+.small { font-size: 13px; color: var(--walnut); }
+
+/* =====================================================================
+   4. BUTTONS
+   ===================================================================== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 52px; padding: 0 22px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-weight: 700; font-size: 15px;
+  transition: transform .15s var(--ease), background-color .2s;
+}
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--espresso); color: var(--milk); }
+.btn-ghost { background: var(--milk); color: var(--espresso); border-color: var(--burlap); }
+.btn-block { width: 100%; }
+.btn-icon { width: 48px; height: 48px; padding: 0; font-size: 20px; }
+
+/* =====================================================================
+   5. HOME SCREEN
+   ===================================================================== */
+.greeting { font-size: 30px; font-weight: 700; line-height: 1.1; margin: 0; }
+
+/* --- Countdown timer card --- */
+.timer {
+  background: var(--milk);
+  border: 1px solid var(--burlap);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 14px;
+}
+.timer-main { display: flex; align-items: center; gap: 16px; }
+.ring { width: 56px; height: 56px; flex: none; }
+.ring-track { stroke: var(--oat); }
+.ring-fill {
+  stroke: var(--offer);
+  transition: stroke-dashoffset 1s linear, stroke .3s;
+}
+.timer.is-urgent .ring-fill { stroke: var(--barn-red); }
+.timer.is-urgent .digits { color: var(--barn-red); }
+.digits {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  line-height: 1.2;
+}
+.timer-buttons { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.timer-buttons .btn { height: 46px; }
+
+/* --- Bucket tiles --- */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tile {
+  position: relative; overflow: hidden;
+  background: var(--milk);
+  border: 1px solid var(--burlap);
+  border-radius: 16px;
+  padding: 18px 14px 14px;
+  min-height: 104px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 16px;
+  text-align: left;
+  transition: transform .15s var(--ease), box-shadow .2s;
+}
+.tile:hover { box-shadow: var(--shadow); }
+.tile:active { transform: scale(.98); }
+/* Colored stripe across the top of each tile */
+.tile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: var(--c); }
+.tile-name { font-size: 18px; font-weight: 700; display: block; }
+.tile-count { font-family: var(--font-mono); font-size: 11px; color: var(--driftwood); }
+
+/* =====================================================================
+   6. SUIT SHAPES (one shape per bucket, so color isn't the only clue)
+   ===================================================================== */
+.suit { width: 14px; height: 14px; display: inline-block; flex: none; background: var(--c); }
+.shape-square  { border-radius: 3px; }
+.shape-circle  { border-radius: 50%; }
+.shape-triangle { clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.shape-diamond { transform: rotate(45deg) scale(.82); }
+.shape-star    { clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%); }
+.shape-hexagon { clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%); }
+.shape-bubble  { border-radius: 50% 50% 50% 12%; } /* speech bubble, for Yap Ideas */
+
+/* --- Welcome / How this works drop-down --- */
+.welcome {
+  background: var(--milk);
+  border: 1px solid var(--burlap);
+  border-radius: 18px;
+  overflow: hidden;
+}
+.welcome summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px;
+}
+.welcome summary::-webkit-details-marker { display: none; }
+.welcome-title { display: flex; flex-direction: column; gap: 2px; }
+.welcome-heading { font-size: 19px; font-weight: 700; line-height: 1.2; }
+.chevron { width: 22px; height: 22px; flex: none; color: var(--walnut); transition: transform .25s var(--ease); }
+.welcome[open] .chevron { transform: rotate(180deg); }
+.welcome-body {
+  padding: 0 16px 16px;
+  display: flex; flex-direction: column; gap: 14px;
+  font-size: 14.5px; color: var(--walnut);
+}
+.welcome-body p { margin: 0; }
+.welcome-body strong { color: var(--espresso); }
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.steps li::marker { font-family: var(--font-mono); color: var(--driftwood); }
+.bucket-guide { display: flex; flex-direction: column; gap: 8px; border-top: 1px dashed var(--burlap); padding-top: 12px; }
+.bucket-guide ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.bucket-guide li { display: flex; align-items: center; gap: 10px; }
+.tip { background: var(--oat); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; }
+
+/* --- Yap Ideas button on Home --- */
+.yap-btn { --c: var(--yap); background: color-mix(in srgb, var(--yap) 22%, var(--milk)); border-color: var(--yap); color: var(--espresso); }
+.yap-btn svg { width: 20px; height: 20px; color: var(--yap-d); }
+
+/* =====================================================================
+   7. DECK SCREEN
+   ===================================================================== */
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: none; border: 0;
+  font-size: 13px; font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--oat); color: var(--walnut);
+}
+.tab[aria-pressed="true"] { background: var(--c); color: var(--espresso); }
+
+/* --- The card stack --- */
+/* Card height adapts to the phone: never shorter than 460px or taller than 580px */
+.stack { position: relative; height: clamp(460px, 64dvh, 580px); perspective: 1400px; touch-action: pan-y; }
+
+/* Two plain cards peeking out behind the top card */
+.stack-shadow {
+  position: absolute; inset: 0;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--burlap);
+  background: var(--oat);
+}
+.stack-shadow.one { transform: translateY(-8px) scale(.95); background: #F3ECDF; }
+.stack-shadow.two { transform: translateY(-16px) scale(.9); }
+
+/* The card that flips. Its two faces sit back to back. */
+.card {
+  position: absolute; inset: 0;
+  transform-style: preserve-3d;
+  transition: transform var(--flip-speed) var(--ease);
+}
+.card.is-flipped { transform: rotateY(180deg); }
+
+/* "Draw" animation: the new card lifts in */
+.card.is-drawn { animation: draw 250ms var(--ease); }
+@keyframes draw {
+  from { opacity: .3; translate: 0 10px; }
+  to   { opacity: 1;  translate: 0 0; }
+}
+
+.face {
+  position: absolute; inset: 0;
+  border-radius: var(--radius-card);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* --- FRONT: solid bucket color with a stitched border --- */
+.face-front {
+  border: 0; width: 100%; text-align: left;
+  background: var(--c);
+  padding: 22px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.face-front::after {
+  content: ""; position: absolute; inset: 10px;
+  border: 1.5px dashed rgba(46, 38, 33, .28);
+  border-radius: 14px; pointer-events: none;
+}
+.front-corner {
+  display: flex; flex-direction: column; gap: 4px;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.big-suit { width: 96px; height: 96px; background: var(--milk); align-self: center; }
+.big-suit.shape-square { border-radius: 18px; }
+.front-title { font-size: 36px; font-weight: 800; line-height: 1; margin: 0; }
+.front-title.is-long { font-size: 30px; } /* longer titles get a little smaller */
+.front-title em { font-style: italic; font-weight: 600; }
+.front-hint { font-size: 12px; opacity: .75; }
+
+/* --- BACK: the full content brief, in four sections --- */
+.face-back {
+  transform: rotateY(180deg);
+  background-color: var(--milk);
+  border: 1px solid var(--burlap);
+  border-top: 8px solid var(--c);
+  display: flex; flex-direction: column;
+}
+/* The middle of the card scrolls; the buttons stay pinned at the bottom */
+.back-body {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 16px 18px 12px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.back-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  padding: 5px 10px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--c) 18%, var(--milk)); color: var(--cd);
+}
+.format { font-size: 12px; color: var(--walnut); background: var(--oat); border-radius: var(--radius-pill); padding: 4px 10px; }
+
+/* One section of the brief (Hook, B-roll, Caption, Brand angle) */
+.brief { display: flex; flex-direction: column; gap: 6px; }
+.brief + .brief { border-top: 1px dashed var(--burlap); padding-top: 14px; }
+.back-label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--cd);
+}
+.mini-copy {
+  border: 1px solid var(--burlap); background: var(--milk); color: var(--espresso);
+  font-family: var(--font-body); font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none;
+  padding: 3px 10px; border-radius: var(--radius-pill);
+}
+.hook { font-size: 21px; font-weight: 700; line-height: 1.22; margin: 0; }
+.prompt { font-size: 14.5px; line-height: 1.6; color: var(--walnut); margin: 0; }
+.caption-starter { font-size: 15px; line-height: 1.5; font-style: italic; margin: 0; }
+/* The Brand Inbound Angle gets a tinted box, since it's the premium insight */
+.brief-angle { background: color-mix(in srgb, var(--c) 12%, var(--milk)); border-radius: 14px; padding: 12px 14px; border-top: 0 !important; }
+.brief-angle + .brief { border-top: 0; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tags span { font-size: 12px; color: var(--walnut); background: var(--oat); border-radius: var(--radius-pill); padding: 4px 10px; }
+.back-actions { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; padding: 10px 18px 16px; border-top: 1px solid var(--burlap); background: var(--milk); }
+.back-actions .btn { height: 48px; }
+.save-btn[aria-pressed="true"] { color: var(--cd); border-color: var(--c); }
+
+/* --- Controls under the deck --- */
+.deck-controls { display: grid; grid-template-columns: 48px 1fr 48px; gap: 10px; align-items: center; }
+.counter { text-align: center; font-family: var(--font-mono); font-size: 13px; color: var(--driftwood); }
+
+/* =====================================================================
+   8. SAVED + SETTINGS SCREENS
+   ===================================================================== */
+.saved-list { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.saved-item {
+  background: var(--milk); border: 1px solid var(--burlap); border-left: 6px solid var(--c);
+  border-radius: 16px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.saved-item .hook { font-size: 18px; }
+.saved-item .prompt { font-size: 14px; }
+.saved-actions { display: flex; gap: 8px; }
+.saved-actions .btn { height: 40px; font-size: 13px; padding: 0 16px; }
+.empty {
+  background: var(--milk); border: 1.5px dashed var(--burlap); border-radius: 18px;
+  padding: 28px 20px; text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center;
+}
+
+.panel {
+  background: var(--milk); border: 1px solid var(--burlap); border-radius: 18px;
+  padding: 18px; display: flex; flex-direction: column; gap: 16px;
+}
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-weight: 700; font-size: 14px; }
+.field input {
+  height: 48px; padding: 0 14px;
+  border: 1px solid var(--burlap); border-radius: 12px;
+  background: var(--linen); color: var(--espresso);
+  font: inherit; font-size: 16px; /* 16px stops iPhone from zooming in */
+}
+
+h2.view-title { font-size: 30px; font-weight: 700; margin: 0; line-height: 1.1; }
+
+/* =====================================================================
+   9. BOTTOM NAV + TOAST
+   ===================================================================== */
+.nav {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  background: rgba(255, 252, 246, .94);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--burlap);
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  z-index: 10;
+}
+.nav-inner { max-width: 440px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+.nav button {
+  border: 0; background: none;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 0; font-size: 12px; color: var(--driftwood);
+}
+.nav button[aria-current="page"] { color: var(--espresso); font-weight: 700; }
+.nav svg { width: 22px; height: 22px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 20px); opacity: 0;
+  background: var(--espresso); color: var(--milk);
+  font-size: 14px; font-weight: 600;
+  padding: 10px 18px; border-radius: var(--radius-pill);
+  transition: opacity .25s, transform .25s var(--ease);
+  pointer-events: none; z-index: 20;
+}
+.toast.is-showing { opacity: 1; transform: translate(-50%, 0); }
+
+/* =====================================================================
+   10. REDUCE MOTION
+   If someone turns on "Reduce Motion" on their phone, we skip animations.
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .card, .toast, .ring-fill, .btn, .tile { transition: none !important; }
+  .card.is-drawn { animation: none; }
+}
+
+/* =====================================================================
+   11. NEW IN VERSION 2
+   Fill-in blanks, "What to film" lists, Posted it, Batch Day, and the
+   Editing Timer.
+   ===================================================================== */
+
+/* --- Home header with the settings gear --- */
+.home-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.icon-btn {
+  flex: none; width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid var(--burlap); background: var(--milk); color: var(--walnut);
+  display: inline-flex; align-items: center; justify-content: center; padding: 0;
+}
+.icon-btn svg { width: 22px; height: 22px; }
+
+/* --- "Posted so far" progress card --- */
+.progress-card {
+  background: var(--milk); border: 1px solid var(--burlap); border-radius: 18px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.progress-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.progress-num { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.meter { height: 8px; background: var(--oat); border-radius: var(--radius-pill); overflow: hidden; }
+.meter > span { display: block; height: 100%; width: 0; background: var(--trend); border-radius: inherit; transition: width .4s var(--ease); }
+
+/* --- Batch Day button on Home --- */
+.batch-btn { justify-content: space-between; padding: 0 18px 0 22px; }
+.batch-btn .batch-count { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--driftwood); }
+
+/* --- Fill-in-the-blank chips inside prompts --- */
+.blank {
+  background: color-mix(in srgb, var(--c, var(--offer)) 22%, var(--milk));
+  border-bottom: 1.5px dashed var(--cd, var(--offer-d));
+  border-radius: 6px;
+  padding: 0 5px;
+  font-style: italic;
+  color: var(--espresso);
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.hook .blank { font-weight: 600; }
+
+/* --- "What to film" shot list on the card back --- */
+.film-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.film-list li {
+  display: grid; grid-template-columns: 14px 1fr; gap: 10px;
+  font-size: 14.5px; line-height: 1.45; color: var(--walnut);
+}
+.film-list li::before {
+  content: ""; width: 12px; height: 12px; margin-top: 4px;
+  border: 1.5px solid var(--cd); border-radius: 3px;
+}
+
+/* --- Posted stamp on the front of a card --- */
+.stamp {
+  position: absolute; top: 20px; right: 20px; z-index: 1;
+  transform: rotate(6deg);
+  background: var(--milk); color: var(--espresso);
+  border: 1.5px solid var(--espresso); border-radius: 8px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+  padding: 6px 10px;
+}
+.posted-tag {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  background: var(--espresso); color: var(--milk);
+  border-radius: var(--radius-pill); padding: 4px 10px; white-space: nowrap; flex: none;
+}
+
+/* --- Card back buttons: two rows --- */
+.back-actions { display: flex; flex-direction: column; gap: 8px; padding: 10px 18px 16px; border-top: 1px solid var(--burlap); background: var(--milk); }
+.actions-row-a { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; }
+.actions-row-b { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.back-actions .btn { height: 46px; }
+.actions-row-b .btn { font-size: 14px; padding: 0 12px; }
+.posted-toggle[aria-pressed="true"] { background: var(--trend); border-color: var(--trend); color: var(--espresso); }
+.batch-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 22%, var(--milk)); border-color: var(--c); }
+.stack { height: clamp(500px, 70dvh, 620px); }
+
+/* --- Small buttons used in lists --- */
+.btn-sm { height: 40px; font-size: 13px; padding: 0 14px; }
+.saved-actions { flex-wrap: wrap; }
+
+/* --- Batch Day --- */
+.view-sub { margin: 4px 0 0; }
+.slots { display: flex; gap: 6px; }
+.slot { flex: 1; height: 8px; border-radius: var(--radius-pill); background: var(--oat); }
+.slot.is-filled { background: var(--c); }
+.section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 6px; }
+.batch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.batch-item {
+  background: var(--milk); border: 1px solid var(--burlap); border-left: 6px solid var(--c);
+  border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.batch-item .hook { font-size: 17px; }
+.batch-item-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.shot-groups { display: flex; flex-direction: column; gap: 12px; }
+.shot-group {
+  background: var(--milk); border: 1px solid var(--burlap); border-top: 6px solid var(--c);
+  border-radius: 16px; padding: 12px 16px 8px; display: flex; flex-direction: column;
+}
+.shot-group h3 { margin: 0 0 4px; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.check-list { list-style: none; margin: 0; padding: 0; }
+.check-list li + li { border-top: 1px dashed var(--burlap); }
+.check {
+  display: grid; grid-template-columns: 24px 1fr; gap: 12px; align-items: start;
+  padding: 10px 0; min-height: 44px; cursor: pointer;
+  font-size: 15px; line-height: 1.45; color: var(--espresso);
+}
+.check input { width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--espresso); cursor: pointer; }
+.check input:checked + span { color: var(--driftwood); text-decoration: line-through; text-decoration-color: var(--burlap); }
+.batch-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* --- Editing timer --- */
+.edit-timer {
+  background: var(--milk); border: 1px solid var(--burlap); border-radius: 20px;
+  padding: 20px 18px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 18px;
+}
+.big-ring { position: relative; width: 208px; height: 208px; margin: 0 auto; }
+.big-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.big-ring .ring-fill { transition: stroke-dashoffset 1s linear, stroke .3s; }
+.ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center; }
+.edit-timer .digits { font-size: 44px; }
+.edit-timer.is-urgent .ring-fill { stroke: var(--barn-red); }
+.edit-timer.is-urgent .digits { color: var(--barn-red); }
+.presets { display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 8px; }
+.preset {
+  height: 44px; padding: 0 8px; white-space: nowrap;
+  border: 1px solid var(--burlap); border-radius: var(--radius-pill);
+  background: var(--linen); color: var(--walnut); font-size: 14px; font-weight: 600;
+}
+.preset[aria-pressed="true"] { background: var(--espresso); border-color: var(--espresso); color: var(--milk); }
+.edit-buttons { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; }
+.checklist-card { background: var(--milk); border: 1px solid var(--burlap); border-radius: 18px; padding: 14px 16px 6px; }
+
+/* Little dot on the Edit tab while the timer is running */
+.nav button { position: relative; }
+.nav .run-dot { position: absolute; top: 4px; left: calc(50% + 9px); width: 8px; height: 8px; border-radius: 50%; background: var(--offer); }
+.nav-inner { grid-template-columns: repeat(5, 1fr); }
+.nav button { font-size: 11.5px; }
+
+/* --- Settings extras --- */
+.danger-zone { display: flex; flex-direction: column; gap: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .meter > span, .big-ring .ring-fill { transition: none !important; }
+}
+
+/* Toast: one line where it fits */
+.toast { width: max-content; max-width: calc(100vw - 32px); text-align: center; }
+
+</style>
+</head>
+
+<body>
+<main class="app">
+
+  <!-- ===================================================================
+       SCREEN 1: HOME
+       =================================================================== -->
+  <section class="view" id="view-home" aria-labelledby="greeting">
+
+    <!-- ===============================================================
+         WELCOME / HOW THIS WORKS (drop-down)
+         Opens automatically on the first visit. After that, it stays
+         however the person left it (open or closed).
+         To change the wording, edit the text below. The bucket list
+         fills itself in from the "about" line on each bucket.
+         =============================================================== -->
+    <details class="welcome" id="welcome">
+      <summary>
+        <span class="welcome-title">
+          <span class="eyebrow">How this works</span>
+          <span class="display welcome-heading">Welcome to your Content Deck</span>
+        </span>
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+
+      <div class="welcome-body">
+        <p>Never stare at a blank screen again. Every card is a complete plan for one lifestyle post, so you can go from "what do I post?" to filming in minutes.</p>
+
+        <ol class="steps">
+          <li><strong>Pick a bucket</strong> below, or tap <strong>Deal me a card</strong> for a surprise.</li>
+          <li><strong>Tap the card to flip it.</strong> The back gives you the hook and prompt, a <strong>What to film</strong> shot list, a caption starter, and why brands love that kind of video.</li>
+          <li><strong>Fill in the highlighted blanks</strong> with your own life. The words inside are just examples.</li>
+          <li><strong>Plan a Batch Day.</strong> Add up to 5 cards and get every shot in one list, so you can film a week of content in one go.</li>
+          <li><strong>Edit with the timer</strong>, then tap <strong>Posted it</strong>. That card leaves the shuffle so you never repeat yourself, but it stays in its bucket to look back on.</li>
+        </ol>
+
+        <div class="bucket-guide">
+          <span class="eyebrow">The buckets</span>
+          <ul id="bucket-guide-list"><!-- Filled in by JavaScript --></ul>
+        </div>
+
+        <p class="tip"><strong>Tip:</strong> Rotate through a different bucket each day so your feed stays balanced. GRWM and Day in My Life build connection; Faves &amp; Finds is where your affiliate links shine.</p>
+      </div>
+    </details>
+
+    <div class="home-head">
+      <div>
+        <div class="small" id="today-date"></div>
+        <h1 class="greeting display" id="greeting">Good morning, creator</h1>
+      </div>
+      <button class="icon-btn" id="open-settings" type="button" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+      </button>
+    </div>
+
+    <!-- How many cards you've posted so far (replaces the old streak) -->
+    <div class="progress-card">
+      <div class="progress-top">
+        <span class="eyebrow">Posted so far</span>
+        <span class="small" id="progress-left"></span>
+      </div>
+      <div class="progress-num display" id="progress-num">0 of 100 cards</div>
+      <div class="meter" aria-hidden="true"><span id="progress-bar"></span></div>
+    </div>
+
+    <div class="row">
+      <span class="eyebrow">Your buckets</span>
+    </div>
+    <div class="tiles" id="tiles"><!-- Filled in by JavaScript --></div>
+
+    <button class="btn btn-primary btn-block" id="draw-btn" type="button">Deal me a card</button>
+
+    <button class="btn btn-ghost btn-block batch-btn" id="home-batch-btn" type="button">
+      <span>Plan a Batch Day</span>
+      <span class="batch-count" id="home-batch-count">0 / 5</span>
+    </button>
+
+    <!-- Bonus deck: talking-head "yap" prompts -->
+    <button class="btn btn-block yap-btn" id="yap-btn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      Yap Ideas
+    </button>
+  </section>
+
+  <!-- ===================================================================
+       SCREEN 2: THE DECK
+       =================================================================== -->
+  <section class="view" id="view-deck" aria-label="Deck" hidden>
+    <div class="tabs" id="tabs" aria-label="Choose a bucket"><!-- Filled in by JavaScript --></div>
+
+    <div class="stack" id="stack">
+      <div class="stack-shadow two" aria-hidden="true"></div>
+      <div class="stack-shadow one" aria-hidden="true"></div>
+
+      <div class="card" id="card">
+        <!-- FRONT of the card (the whole face is a button that flips it) -->
+        <button class="face face-front" id="card-front" type="button" aria-label="Flip card to see the prompt">
+          <span class="stamp" id="front-stamp" hidden>Posted</span>
+          <span class="front-corner"><span id="front-count">01 / 15</span><span id="front-bucket">Bucket</span></span>
+          <span class="big-suit" id="front-suit" aria-hidden="true"></span>
+          <span>
+            <span class="front-title display" id="front-title" style="display:block"></span>
+            <span class="front-hint">Tap to flip</span>
+          </span>
+        </button>
+
+        <!-- BACK of the card (the full plan) -->
+        <div class="face face-back" id="card-back" inert>
+          <div class="back-body" id="back-body">
+            <div class="back-top">
+              <span class="pill"><span class="suit" id="back-suit"></span><span id="back-bucket"></span></span>
+              <span class="format" id="back-format"></span>
+              <span class="posted-tag" id="back-posted" hidden></span>
+            </div>
+
+            <!-- 1. Hook + prompt -->
+            <div class="brief">
+              <span class="back-label">1 · Hook &amp; prompt</span>
+              <p class="hook display" id="back-hook"></p>
+              <p class="prompt" id="back-script"></p>
+            </div>
+
+            <!-- 2. What to film -->
+            <div class="brief">
+              <span class="back-label">2 · What to film</span>
+              <ul class="film-list" id="back-film"></ul>
+            </div>
+
+            <!-- 3. Caption starter (with its own copy button) -->
+            <div class="brief">
+              <span class="back-label">3 · Caption starter
+                <button class="mini-copy" id="copy-caption-btn" type="button">Copy caption</button>
+              </span>
+              <p class="caption-starter" id="back-caption"></p>
+            </div>
+
+            <!-- 4. Why brands love it -->
+            <div class="brief brief-angle">
+              <span class="back-label">4 · Why brands love it</span>
+              <p class="prompt" id="back-inbound"></p>
+            </div>
+
+            <div class="tags" id="back-tags"></div>
+          </div>
+          <div class="back-actions">
+            <div class="actions-row-a">
+              <button class="btn btn-ghost btn-icon" id="flip-back-btn" type="button" aria-label="Flip card back">↺</button>
+              <button class="btn btn-primary" id="copy-btn" type="button">Copy full card</button>
+              <button class="btn btn-ghost btn-icon save-btn" id="save-btn" type="button" aria-pressed="false" aria-label="Save this card">♡</button>
+            </div>
+            <div class="actions-row-b">
+              <button class="btn btn-ghost batch-toggle" id="batch-toggle" type="button" aria-pressed="false">+ Batch Day</button>
+              <button class="btn btn-ghost posted-toggle" id="posted-toggle" type="button" aria-pressed="false">Posted it</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="deck-controls">
+      <button class="btn btn-ghost btn-icon" id="prev-btn" type="button" aria-label="Previous card">‹</button>
+      <div class="counter" id="counter" aria-live="polite">Card 1 of 15</div>
+      <button class="btn btn-ghost btn-icon" id="next-btn" type="button" aria-label="Next card">›</button>
+    </div>
+    <button class="btn btn-ghost btn-block" id="shuffle-btn" type="button">Shuffle this bucket</button>
+  </section>
+
+  <!-- ===================================================================
+       SCREEN 3: BATCH DAY
+       Up to 5 cards, and every "What to film" shot in one checklist.
+       =================================================================== -->
+  <section class="view" id="view-batch" aria-labelledby="batch-title" hidden>
+    <div>
+      <h2 class="view-title display" id="batch-title">Batch Day</h2>
+      <p class="small view-sub" id="batch-sub">Pick up to 5 cards. Every shot you need lands in one list, so you can film it all in one go.</p>
+    </div>
+    <div class="slots" id="slots" aria-hidden="true"></div>
+
+    <div class="empty" id="batch-empty">
+      <strong class="display" style="font-size:20px">Your batch day is empty</strong>
+      <span class="small">Tap <strong>+ Batch Day</strong> on any card, or let the deck pick 5 for you, one from each bucket.</span>
+      <button class="btn btn-primary" id="batch-fill-empty" type="button">Pick 5 for me</button>
+      <button class="btn btn-ghost" id="batch-browse" type="button">Browse the deck</button>
+    </div>
+
+    <div id="batch-content" class="view" hidden>
+      <div class="section-head"><span class="eyebrow">Your cards</span><span class="small" id="batch-card-count"></span></div>
+      <ul class="batch-list" id="batch-list"></ul>
+      <button class="btn btn-ghost btn-block" id="batch-fill" type="button">Fill the empty spots for me</button>
+
+      <div class="section-head"><span class="eyebrow">Shot list</span><span class="small" id="shot-progress"></span></div>
+      <div class="meter" aria-hidden="true"><span id="shot-bar"></span></div>
+      <div class="shot-groups" id="shot-groups"></div>
+
+      <div class="batch-tools">
+        <button class="btn btn-primary" id="copy-shots" type="button">Copy shot list</button>
+        <button class="btn btn-ghost" id="clear-batch" type="button">Clear batch</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       SCREEN 4: EDITING TIMER
+       =================================================================== -->
+  <section class="view" id="view-edit" aria-labelledby="edit-title" hidden>
+    <div>
+      <h2 class="view-title display" id="edit-title">Editing timer</h2>
+      <p class="small view-sub">Pick a time, hit start, and edit until the chime. A deadline stops the endless tweaking.</p>
+    </div>
+
+    <div class="edit-timer" id="timer">
+      <div class="big-ring">
+        <svg viewBox="0 0 208 208" aria-hidden="true">
+          <circle class="ring-track" cx="104" cy="104" r="92" fill="none" stroke-width="12"/>
+          <circle class="ring-fill" id="ring-fill" cx="104" cy="104" r="92" fill="none" stroke-width="12"
+                  stroke-linecap="round" stroke-dasharray="578.05" stroke-dashoffset="0"
+                  transform="rotate(-90 104 104)"/>
+        </svg>
+        <div class="ring-center">
+          <div class="digits" id="timer-digits" role="timer" aria-live="off">30:00</div>
+          <div class="small" id="timer-label">Ready to edit</div>
+        </div>
+      </div>
+      <div class="presets" id="presets" role="group" aria-label="Edit session length"><!-- Filled in by JavaScript --></div>
+      <div class="edit-buttons">
+        <button class="btn btn-primary" id="start-btn" type="button">Start</button>
+        <button class="btn btn-ghost" id="add-five-btn" type="button">+5 min</button>
+        <button class="btn btn-ghost" id="reset-btn" type="button">Reset</button>
+      </div>
+    </div>
+
+    <div class="section-head"><span class="eyebrow">Before you hit post</span><button class="mini-copy" id="clear-checks" type="button">Clear</button></div>
+    <div class="checklist-card">
+      <ul class="check-list" id="edit-checklist"><!-- Filled in by JavaScript --></ul>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       SCREEN 5: SAVED CARDS
+       =================================================================== -->
+  <section class="view" id="view-saved" aria-labelledby="saved-title" hidden>
+    <h2 class="view-title display" id="saved-title">Saved cards</h2>
+    <ul class="saved-list" id="saved-list"></ul>
+    <div class="empty" id="saved-empty">
+      <strong class="display" style="font-size:20px">No saved cards yet</strong>
+      <span class="small">Tap the heart on any prompt to keep it here for later.</span>
+    </div>
+  </section>
+
+  <!-- ===================================================================
+       SCREEN 6: SETTINGS (opens from the gear on Home)
+       =================================================================== -->
+  <section class="view" id="view-settings" aria-labelledby="settings-title" hidden>
+    <h2 class="view-title display" id="settings-title">Settings</h2>
+    <form class="panel" id="settings-form">
+      <div class="field">
+        <label for="name-input">Your first name</label>
+        <input id="name-input" type="text" autocomplete="given-name" placeholder="creator" maxlength="30">
+      </div>
+      <div class="field">
+        <label for="edit-input">Your usual edit session (minutes)</label>
+        <input id="edit-input" type="number" min="1" max="180" inputmode="numeric" value="30">
+        <span class="small">This shows up as your own button on the editing timer.</span>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Save settings</button>
+    </form>
+
+    <div class="panel danger-zone">
+      <strong>Start fresh</strong>
+      <span class="small" id="reset-posted-note">Put every posted card back into the shuffle.</span>
+      <button class="btn btn-ghost btn-block" id="reset-posted" type="button">Reset posted cards</button>
+    </div>
+    <p class="small">Your settings, saved cards, posted cards, and batch day are stored on this device only.</p>
+  </section>
+
+</main>
+
+<!-- ===================================================================
+     BOTTOM NAVIGATION
+     =================================================================== -->
+<nav class="nav" aria-label="Main">
+  <div class="nav-inner">
+    <button type="button" data-view="home" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+      Home
+    </button>
+    <button type="button" data-view="deck">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="3" width="13" height="17" rx="2.5"/><path d="M3.5 7v12.5A1.5 1.5 0 0 0 5 21h10"/></svg>
+      Deck
+    </button>
+    <button type="button" data-view="batch">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="13" height="11" rx="2"/><path d="M16 11l5-3v9l-5-3"/><path d="M6 4h7"/></svg>
+      Batch
+    </button>
+    <button type="button" data-view="edit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9.5 2h5"/></svg>
+      Edit
+      <span class="run-dot" id="run-dot" hidden></span>
+    </button>
+    <button type="button" data-view="saved">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+      Saved
+    </button>
+  </div>
+</nav>
+
+<!-- Pop-up message ("Copied to clipboard") -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+
+/* =====================================================================
+   CARD CONTENT
+   ---------------------------------------------------------------------
+   This is the heart of the app. Each bucket has:
+     id     : a short code (letters only, no spaces or dashes)
+     name   : the name shown in the app
+     about  : one short line for the "How this works" guide
+     color  : which color token to use (see the top of the <style>)
+     shape  : square, circle, triangle, diamond, star, hexagon, or bubble
+     cards  : the list of cards in that bucket
+
+   THE DECK: 6 lifestyle buckets × 15 cards + the Yap Ideas bonus deck
+   (10 cards) = 100 cards. The Yap deck is listed last; it opens from
+   the "Yap Ideas" button on Home and isn't used by "Deal me a card".
+
+   EVERY CARD HAS THESE PROPERTIES:
+     front   : two short lines for the front of the card
+               (the second line shows in italics)
+     format  : the content format and length, e.g. "Reel · 15–25s"
+     hook    : 1. the opening line (spoken or on-screen)
+     script  : 1. the prompt: what to say and do, beat by beat
+     film    : 2. "What to film": a short list of clips and B-roll
+     caption : 3. the caption starter
+     inbound : 4. why brands love this kind of video
+     tags    : small labels shown at the bottom of the card
+
+   FILL-IN-THE-BLANKS: anything in [square brackets] shows up as a
+   highlighted blank with example answers. Separate examples with " / ".
+     e.g.  "Go shopping with me as a [busy mom of 3 / college senior]"
+
+   TO ADD A CARD: copy one { ... } block, paste it AFTER the last card
+   in the same bucket, put a comma between them, and change the words.
+   (Add new cards at the end of a bucket so saved and posted cards
+   stay matched up.)
+   ===================================================================== */
+const BUCKETS = [
+
+  /* ---------------------------------------------------------------
+     BUCKET 1: GRWM (get ready with me + talk)
+     15 cards
+     --------------------------------------------------------------- */
+  {
+    id: "grwm", name: "GRWM", color: "story", shape: "triangle",
+    about: "get ready on camera while you talk. Your story is the real content.",
+    cards: [
+      {
+        front: ["GRWM while I", "tell you about…"],
+        format: "Reel · 45–75s",
+        hook: "GRWM while I tell you about [the worst date I've ever been on / the day my car died in a drive-thru].",
+        script: "Start talking before your face is done; the bare-face start is part of the charm. Tell the story in three beats: how it started, the moment it went sideways, and how it ended. Save the punchline for your last step [lipstick / perfume / earrings] so people stay for the finished look and the ending at the same time.",
+        film: [
+          "Bare-face close-up as you start the story",
+          "Overhead of your products lined up on the counter",
+          "Mirror shot, hands mid-routine (2–3 clips)",
+          "The final step, timed to the punchline",
+          "Step back from the camera: full look reveal"
+        ],
+        caption: "I still can't believe [this happened / I said that out loud]. Has anything like this ever happened to you?",
+        inbound: "Beauty and skincare brands want creators who can use a product naturally while holding attention with a story. A GRWM storytime proves you can feature their product for 60 seconds without it feeling like an ad.",
+        tags: ["GRWM", "Storytime", "Talking"]
+      },
+      {
+        front: ["GRWM while I", "shop for…"],
+        format: "Reel · 30–60s",
+        hook: "GRWM while I shop for [a wedding guest dress / my daughter's homecoming shoes] (and tell you what I almost bought).",
+        script: "Get ready with your phone or laptop propped up on the counter. Between steps, show what you're adding to your cart and give a quick verdict on each: yes, no, or maybe. End by revealing the one thing you actually ordered, and why it won. Viewers love being the friend you're shopping with.",
+        film: [
+          "Laptop or phone open on the counter while you get ready",
+          "Screen recording scrolling the site and your cart",
+          "Close-up of you reacting to a price",
+          "Holding a tape measure or old item up to compare (optional)",
+          "Final shot: the confirmation screen, or you holding it when it arrives"
+        ],
+        caption: "Cart total started at [$212 / way too much]. Here's what made the cut. Would you have picked the same one?",
+        inbound: "Retailers and apps love content that shows the shopping decision as it happens. This format proves you can walk viewers through choosing, which is exactly what a brand wants before someone buys.",
+        tags: ["GRWM", "Online shopping", "Affiliate-friendly"]
+      },
+      {
+        front: ["GRWM for", "a real Tuesday."],
+        format: "Reel · 30–45s",
+        hook: "GRWM for [school pickup and a Target run / a 7 a.m. shift], the 10-minute version.",
+        script: "Skip the full glam. Show the realistic, everyday routine you actually do, start to finish, and name the one step you never skip. Narrate what the day ahead looks like as you go. Everyday routines feel doable, and doable is what people save.",
+        film: [
+          "Clock or phone showing the time as you start",
+          "Quick cuts of each step (2 seconds each)",
+          "The one step you never skip, in close-up",
+          "Grabbing keys, coffee, or bag on the way out",
+          "Walking out the door or getting in the car"
+        ],
+        caption: "No ring light, no 45-minute routine. Just [the real me at 7:40 a.m. / a mom on a mission]. What's the one step you never skip?",
+        inbound: "Drugstore and everyday brands need creators whose routines look like their customers' routines. Showing a realistic Tuesday proves you're relatable to the shoppers they're trying to reach.",
+        tags: ["GRWM", "Everyday", "Low effort"]
+      },
+      {
+        front: ["GRWM:", "my 40s edition."],
+        format: "Reel · 45–60s",
+        hook: "GRWM and the things I stopped doing in my [40s / 30s / first year as a mom].",
+        script: "Pair each step of your routine with one thing you've let go of: an old habit, a beauty rule, a people-pleasing thing. Keep it light and a little funny. End with the one thing you started doing instead. Life-stage content gets shared because viewers send it to friends who are in the same season.",
+        film: [
+          "Close-up of your skin, no filter, under window light",
+          "Products you've switched to as you get older (overhead)",
+          "Mirror shot as you laugh or shrug at a point",
+          "An old photo of you, held up to the camera (optional)",
+          "Final look, smiling straight into the lens"
+        ],
+        caption: "Number 3 took me way too long to figure out. Which one did you learn the hard way?",
+        inbound: "Brands targeting a specific age group struggle to find creators who speak to that stage honestly. Owning your age on camera makes you the go-to voice for the products made for it.",
+        tags: ["GRWM", "Life stage", "Relatable"]
+      },
+      {
+        front: ["Get unready", "with me."],
+        format: "Reel · 45–60s",
+        hook: "Get unready with me while I tell you about [what today actually looked like / a win I didn't post about].",
+        script: "Film your nighttime routine: makeup off, skincare, comfy clothes, lights low. Talk through the day honestly: the high point, the low point, and one thing you're grateful for. Night content feels slower and more personal, so let the pace breathe.",
+        film: [
+          "Taking earrings off, close-up",
+          "Makeup wipe or cleanser coming off (mirror shot)",
+          "Skincare steps from overhead, warm lamp light",
+          "Changing into pajamas or a cozy robe (from the doorway)",
+          "Lamp click off, or getting into bed"
+        ],
+        caption: "Today was [a lot / honestly a good one]. Tell me your high and low of the day. I'll go first in the comments.",
+        inbound: "Skincare, sleep, and comfort brands love nighttime routines because they place the product in a calm, trusted moment. This proves you can make a product feel like part of someone's evening ritual.",
+        tags: ["GRWM", "Night routine", "Cozy"]
+      },
+      {
+        front: ["GRWM for", "the big event."],
+        format: "Reel · 45–60s",
+        hook: "GRWM for [my daughter's dance competition / date night after 19 years of marriage].",
+        script: "Build the anticipation: why tonight matters, what you're nervous or excited about, what you're wearing and why. Finish the routine, then cut to 2–3 clips from the actual event. The payoff of seeing the moment is what keeps people watching.",
+        film: [
+          "The outfit laid out on the bed (overhead)",
+          "Getting ready, with you talking about why tonight matters",
+          "Final look in a full-length mirror",
+          "2–3 clips at the event itself",
+          "One candid moment at the end (a laugh, a hug, applause)"
+        ],
+        caption: "Getting ready for [her last competition of the season / our first night out in months]. Swipe to see how it went.",
+        inbound: "Event content shows brands you can carry a product (an outfit, makeup, a fragrance) from the bathroom mirror to a real-life moment, which is the story most fashion and beauty campaigns want to tell.",
+        tags: ["GRWM", "Event", "Payoff"]
+      },
+      {
+        front: ["GRWM while I", "answer you."],
+        format: "Reel · 45–75s",
+        hook: "GRWM while I answer the questions you've been asking about [my marriage / starting content at 47].",
+        script: "Pick 3–4 real questions from your comments or DMs. Show each one on screen, then answer it during a step of your routine. Answer the most personal one last. Answering real questions tells your audience you're listening, and it makes them more likely to ask again.",
+        film: [
+          "Screenshot of each question (blur names)",
+          "Mid-routine reaction as you read each question",
+          "Close-up of you answering the personal one",
+          "Product close-ups between answers",
+          "Final look, waving or pointing to the comments"
+        ],
+        caption: "You asked, I answered (even the one about [our age gap / how we afford travel]). What should I answer next?",
+        inbound: "Q&A content shows brands that your audience engages with you directly. That two-way relationship is exactly what makes a recommendation from you land.",
+        tags: ["GRWM", "Q&A", "Community"]
+      },
+      {
+        front: ["GRWM, everything", "under $15."],
+        format: "Reel · 30–45s",
+        hook: "Full face of makeup, and nothing costs more than [$15 / $10].",
+        script: "Use only budget products and show the price on screen for each. Give one honest verdict per product: the hero, the fine one, and the one you'd skip. End with a close-up of the final look in daylight. Budget proof plus honesty is what makes people trust your recommendations.",
+        film: [
+          "All products lined up with price stickers or on-screen prices",
+          "Each product in use (1–2 seconds each)",
+          "Swatch on your hand or wrist",
+          "Final look by the window in natural light",
+          "Close-up of the hero product, held up"
+        ],
+        caption: "Total for the whole face: [$63]. The [concealer] is the one I'd buy again tomorrow. Which drugstore product can you not live without?",
+        inbound: "Drugstore brands need creators who can prove that affordable products look good on camera. Price-tagged, honest GRWMs are the content those brands hire for and reshare.",
+        tags: ["GRWM", "Budget", "Affiliate-friendly"]
+      },
+      {
+        front: ["GRWM while I", "plan my week."],
+        format: "Reel · 45–60s",
+        hook: "GRWM while I plan my week, because [Monday came out swinging / I have zero idea what's for dinner].",
+        script: "Prop up a planner, calendar app, or notepad next to the mirror. Between steps, talk through the week: the big things, the hard day, the meals, the one thing just for you. People love peeking into how someone else organizes real life.",
+        film: [
+          "Overhead of the planner or calendar on the counter",
+          "Writing or typing the week's plan (sped up)",
+          "Mid-routine, glancing at the plan as you talk",
+          "Close-up of the one thing just for you, circled",
+          "Closing the planner with the final look"
+        ],
+        caption: "This week: [two dance practices, one dentist, zero plans for dinner]. What does your week look like?",
+        inbound: "Planner, app, and organization brands want creators who show how their product fits into a real routine. A weekly planning GRWM shows a brand exactly where their product would sit in your life.",
+        tags: ["GRWM", "Planning", "Routine"]
+      },
+      {
+        front: ["GRWM: the", "honest version."],
+        format: "Reel · 45–75s",
+        hook: "GRWM, but I'm telling you what's actually going on, like [work is slow and I'm stressed / I'm tired of being the default parent].",
+        script: "Pick one real thing you'd normally keep off camera (nothing you'd regret posting). Share it calmly while you get ready: what's happening, how you're handling it, and what's helping. End on a small, hopeful note. Honesty builds the kind of trust that turns viewers into followers.",
+        film: [
+          "Slow, quiet start: just washing your face",
+          "Close framing while you talk, phone at eye level",
+          "A pause or deep breath you leave in",
+          "Hands doing one small, calming step (lotion, a hair tie)",
+          "Final look with a soft smile"
+        ],
+        caption: "Not every day is a highlight reel. If you're in [a hard season / the same spot], you're not the only one.",
+        inbound: "Brands want creators whose audiences actually trust them. Honest, grounded content shows that your followers listen to you, which makes your future recommendations worth more.",
+        tags: ["GRWM", "Vulnerable", "Trust"]
+      },
+      {
+        front: ["One piece,", "three outfits."],
+        format: "Reel · 20–30s",
+        hook: "One [denim jacket / pair of white sneakers], three outfits, for [school drop-off, date night, and the weekend].",
+        script: "Style one item three ways and show each look with a quick transition: a jump, a spin, or a hand over the lens. Say where you'd wear each one in a few words. Outfit formulas are some of the most-saved posts because people want to copy them.",
+        film: [
+          "The single item, held up or laid flat",
+          "Outfit 1 in a full-length mirror",
+          "Transition shot: snap, spin, or covering the lens",
+          "Outfits 2 and 3, same spot and same framing",
+          "Detail close-ups: shoes, bag, jewelry"
+        ],
+        caption: "Which one are you wearing: 1, 2, or 3? (I'm a 2 girl forever.)",
+        inbound: "Fashion brands look for creators who can show versatility, since getting more wear out of one piece is how they justify the price. This proves you can make one product look worth it.",
+        tags: ["GRWM", "Outfits", "Save bait"]
+      },
+      {
+        front: ["GRWM in", "10 minutes flat."],
+        format: "Reel · 30–45s",
+        hook: "I have 10 minutes until [pickup / a Zoom call]. Can I get ready in time?",
+        script: "Put a countdown timer on screen and race it. Narrate the shortcuts you take and what you skip when you're rushed. End by showing the timer and the final look side by side. A race gives viewers a reason to watch to the very end.",
+        film: [
+          "Phone timer starting at 10:00",
+          "Fast cuts of each step (1–2 seconds each)",
+          "A close-up of a shortcut you use",
+          "Timer check halfway through",
+          "Final look next to the timer, plus one shot heading out the door"
+        ],
+        caption: "Made it with [47 seconds] to spare. What's your fastest get-ready time?",
+        inbound: "Multi-use and quick-application brands want proof their product saves time. A timed GRWM is a built-in demo of speed and ease.",
+        tags: ["GRWM", "Challenge", "Fast"]
+      },
+      {
+        front: ["GRWM while I", "share a hot take."],
+        format: "Reel · 30–45s",
+        hook: "GRWM while I tell you my unpopular opinion about [matching family pajamas / Stanley cups].",
+        script: "Pick a low-stakes, lifestyle opinion that's fun to disagree with. Give three reasons as you get ready, then admit the one thing you'd still defend about it. Light disagreement fills the comments without anyone getting hurt.",
+        film: [
+          "Leaning in close as you deliver the hot take",
+          "Holding up the item in question, if you have it",
+          "Mid-routine shrug or side-eye at the camera",
+          "Final look with a playful “fight me” face",
+          "Pointing down at the comments"
+        ],
+        caption: "I said what I said. Defend [matching pajamas] in the comments if you dare.",
+        inbound: "Brands value creators who can spark comments without controversy. A playful hot take shows you can drive engagement while staying brand-safe.",
+        tags: ["GRWM", "Hot take", "Comment bait"]
+      },
+      {
+        front: ["Get ready with", "my person."],
+        format: "Reel · 30–60s",
+        hook: "Get ready with me and [my 16-year-old / my mom / my husband], and they're judging my routine.",
+        script: "Get ready side by side or have them watch and comment. Let them rate your products, call out your habits, or do one step for you. Keep their real reactions in. Two people on camera feels like hanging out, and family content gets shared with family.",
+        film: [
+          "Both of you in the mirror at the start",
+          "Close-up of their reaction to one of your products",
+          "Them doing one step on you (lipstick, curling a piece of hair)",
+          "Laughing or arguing over something (leave it in)",
+          "Final shot: both of you ready, side by side"
+        ],
+        caption: "She rated my routine a [6/10] and I'm choosing not to take it personally. Who should get ready with me next?",
+        inbound: "Brands targeting families or multiple generations love two-person content because it shows a product working for more than one person. It also proves you can direct real people on camera.",
+        tags: ["GRWM", "Two people", "Family"]
+      },
+      {
+        front: ["GRWM for", "travel day."],
+        format: "Reel · 30–60s",
+        hook: "GRWM for [a 6 a.m. flight to Cancún / a road trip in our camper], plus what's in my travel bag.",
+        script: "Show your comfy-but-cute travel outfit and the minimal makeup you actually travel in. Then pack your carry-on or travel bag one item at a time and say why each made the cut. End at the airport, the car, or the first view. Travel content gets saved for the next trip.",
+        film: [
+          "The travel outfit laid out the night before",
+          "Quick, minimal routine in hotel or bathroom light",
+          "Overhead of each bag item going in, one by one",
+          "Rolling the suitcase out the door",
+          "First view of the destination (water, road, the gate)"
+        ],
+        caption: "The one thing I never travel without: [my silk eye mask / a tiny bag of snacks]. What's yours?",
+        inbound: "Travel, luggage, and beauty brands all need packing content. A travel GRWM puts several product categories in one video, so it's a strong portfolio piece for travel partnerships.",
+        tags: ["GRWM", "Travel", "Packing"]
+      }
+    ]
+  },
+
+  /* ---------------------------------------------------------------
+     BUCKET 2: SHOP WITH ME (take viewers shopping with you)
+     15 cards
+     --------------------------------------------------------------- */
+  {
+    id: "shop", name: "Shop With Me", color: "behind", shape: "circle",
+    about: "take your viewers along, in the store or online.",
+    cards: [
+      {
+        front: ["Shop with me", "as a…"],
+        format: "Reel · 30–45s",
+        hook: "Go shopping with me as a [busy mom of 3 / 47-year-old business owner] who [has 20 minutes before pickup / refuses to pay full price].",
+        script: "Your character and your rule are the hook, so stick to both the whole trip. Narrate your choices as that person would: what you grab, what you skip, and your one guilty extra. End at checkout with the total. The more specific the character, the more people feel like you're talking about them.",
+        film: [
+          "Pulling into the parking lot or grabbing a cart",
+          "Walking an aisle, phone at chest height",
+          "Close-ups of each item you pick up",
+          "The guilty-pleasure grab, with a look at the camera",
+          "Receipt or card tap at checkout"
+        ],
+        caption: "If you're also a [mom with 20 minutes and a dream], this one's for you. What's always in your cart?",
+        inbound: "Retail brands want creators who represent a clear type of shopper. A character-led shop-with-me shows them exactly which customer you speak for.",
+        tags: ["Shop with me", "Character", "In-store"]
+      },
+      {
+        front: ["No list,", "one budget."],
+        format: "Reel · 30–45s",
+        hook: "Shop with me at [Target / HomeGoods] with no list and a [$50] limit. Can I stay under?",
+        script: "Show a running total on screen as you add each item. Talk through the struggle: what you want, what you need, and what goes back. Reveal the final total at checkout. A budget gives the video built-in tension, so people stay to see if you made it.",
+        film: [
+          "Store entrance or the cart, with the budget on screen",
+          "Each item going into the cart, price tag in close-up",
+          "Putting something back on the shelf",
+          "Self-checkout screen showing the total",
+          "The haul laid out at home"
+        ],
+        caption: "Final total: [$48.72] 🎉. Would you have kept the [candle] or the [throw pillow]?",
+        inbound: "Store brands love budget content because it makes their store look like a smart choice. It also proves you can make a shopping trip entertaining, which is the core skill for retail partnerships.",
+        tags: ["Shop with me", "Budget", "Running total"]
+      },
+      {
+        front: ["Shop with me", "for a theme."],
+        format: "Reel · 30–45s",
+        hook: "Shop with me for [a fall porch refresh / a teacher appreciation basket].",
+        script: "Pick one goal and shop only for that. Show 3–5 finds, and why each one fits the look. Then cut to home and put it all together. The before-and-after payoff at the end is what makes people save it.",
+        film: [
+          "The empty porch, table, or basket before you shop",
+          "Browsing the aisle for your theme",
+          "Holding up two options and choosing one",
+          "Setting everything up at home (sped up)",
+          "Slow pan of the finished result"
+        ],
+        caption: "Whole [porch refresh] for [$85]. Which piece is your favorite?",
+        inbound: "Home and seasonal brands want creators who can show a product styled in a real space. A themed shop plus a finished reveal is the exact flow of a home-decor campaign.",
+        tags: ["Shop with me", "Seasonal", "Before & after"]
+      },
+      {
+        front: ["The cart", "I didn't buy."],
+        format: "Reel · 30–45s",
+        hook: "Shop with me at [HomeGoods / Target], but I'm putting everything back. Here's what almost got me.",
+        script: "Fill a cart with everything that tempts you, then walk it back item by item and say why you're passing on each one. Keep it funny and honest. End with the one thing you did buy. Self-control content is weirdly satisfying, and people relate to the temptation.",
+        film: [
+          "A cart filling up with tempting things",
+          "Close-ups of each item and its price",
+          "Walking it back to the shelf (sped up)",
+          "One thing you couldn't put back",
+          "An empty cart, or a single item at checkout"
+        ],
+        caption: "I'm proud of myself, but I'm still thinking about that [throw blanket]. What's the hardest thing for you to put back?",
+        inbound: "Honest shopping content builds trust, and trust is what makes your “yes” mean something. Brands want a creator whose audience knows they don't buy everything.",
+        tags: ["Shop with me", "Relatable", "Funny"]
+      },
+      {
+        front: ["Dupe", "hunting."],
+        format: "Reel · 30–45s",
+        hook: "Can I find a dupe for [a $98 candle / Lululemon leggings] at [TJ Maxx / Walmart]?",
+        script: "Show the original first, with its price. Then hunt in store and compare your options to it. Finish with a side-by-side and an honest verdict on how close it gets. Dupes are among the most searched shopping topics, so these posts keep getting found.",
+        film: [
+          "The original item or a screenshot of it, with its price",
+          "Hunting through the racks or shelves",
+          "Holding the possible dupe next to the photo",
+          "Side-by-side comparison at home",
+          "A close-up showing the quality (fabric, label, texture)"
+        ],
+        caption: "Original: [$98]. Dupe: [$12.99]. Honestly? [80% there]. Would you swap?",
+        inbound: "Budget retailers love dupe content because it makes their product look like a win. It also shows you can compare products honestly, a skill brands value for review content.",
+        tags: ["Shop with me", "Dupes", "Searchable"]
+      },
+      {
+        front: ["Grocery haul", "on a budget."],
+        format: "Reel · 30–60s",
+        hook: "Shop with me for a week of dinners for [a family of 4 / just the two of us] on [$150].",
+        script: "Name the meal plan up front: list the dinners on screen. Shop for it and show the total as you go. At home, lay it all out and match each item to a meal. Practical grocery content gets saved and shared with partners and roommates.",
+        film: [
+          "Your list or meal plan on paper or your phone",
+          "Grabbing items in each section (produce, meat, pantry)",
+          "Checkout total on the screen",
+          "Groceries spread out on the counter from overhead",
+          "A clip of one finished dinner"
+        ],
+        caption: "[7 dinners, $142]. The [sheet-pan fajitas] are on repeat at our house. What's your go-to cheap dinner?",
+        inbound: "Grocery stores, meal kits, and food brands look for creators who make feeding a family look doable. Budget hauls position you for pantry, kitchen, and grocery-delivery partnerships.",
+        tags: ["Shop with me", "Grocery", "Family"]
+      },
+      {
+        front: ["Thrift", "with me."],
+        format: "Reel · 30–45s",
+        hook: "Thrift with me at [Goodwill / an estate sale] and I'll show you what I'd flip.",
+        script: "Browse, find 3–4 pieces, and say what you see in each one: a repaint, a restyle, a new use. Buy your favorite and show the flip at home (or promise a part 2). The transformation is the payoff, so give viewers a reason to come back for it.",
+        film: [
+          "The store's racks or shelves (wide shot)",
+          "Your hand pulling something out",
+          "Price tag close-up",
+          "The piece at home before the flip",
+          "The after (or a “part 2 coming” text card)"
+        ],
+        caption: "[$6] and some paint. Part 2 is coming. Would you have grabbed it?",
+        inbound: "Thrifting shows creativity and resourcefulness, two things DIY, paint, and home brands want in a creator. A flip is also a natural spot for a product (the paint, the tool) to shine.",
+        tags: ["Shop with me", "Thrift", "Series"]
+      },
+      {
+        front: ["Shop with me", "for someone."],
+        format: "Reel · 30–45s",
+        hook: "Shop with me for [my husband's birthday / a new mom who has everything].",
+        script: "Describe the person in three quick details: what they love, what they'd never buy themselves, and what they'd hate. Shop with those rules and narrate each choice. Show the gift wrapped (or their reaction, if you can film it). Gift content gets saved by people who have the same person in their life.",
+        film: [
+          "A photo of the person, or their hands (if they prefer not to show their face)",
+          "Browsing with your three rules on screen",
+          "Picking up and putting down options",
+          "Wrapping the gift from overhead",
+          "Their reaction when they open it (optional)"
+        ],
+        caption: "Shopping for [a man who says he wants nothing] is a sport. What do you get the person who has everything?",
+        inbound: "Gift content runs all year (birthdays, holidays, Mother's Day). Brands plan gift-guide campaigns months ahead and look for creators who already make this kind of video.",
+        tags: ["Shop with me", "Gifts", "Seasonal"]
+      },
+      {
+        front: ["New arrivals,", "rated."],
+        format: "Reel · 30–45s",
+        hook: "Rating the new [fall arrivals at Old Navy / spring section at Target] out of 10.",
+        script: "Walk the new section and give each piece a score with one quick reason. Be honest, since a few low scores make your high scores believable. End by naming your top pick and the one you're buying. Ratings make people stop scrolling to see whether they agree.",
+        film: [
+          "The new-arrivals sign or section, wide",
+          "Holding up each piece with your score on screen",
+          "Feeling the fabric or checking the tag",
+          "A quick try-on of your top pick",
+          "Your top pick in the cart"
+        ],
+        caption: "The [cream cardigan] is a 10 and I'll hear no arguments. Which one would you buy?",
+        inbound: "Retailers want reach for new collections, fast. Creators who already review new drops are an easy fit for launch campaigns.",
+        tags: ["Shop with me", "Ratings", "New arrivals"]
+      },
+      {
+        front: ["An honest", "try-on."],
+        format: "Reel · 30–60s",
+        hook: "An honest try-on as a [size 14 / petite 5'1\"] woman: what actually works.",
+        script: "Try on 4–5 pieces in the fitting room and give an honest verdict on each. Say your size and what you'd change. Celebrate the winners. Real-body try-ons are what shoppers trust most, because they show how clothes look on someone like them.",
+        film: [
+          "Walking into the fitting room with your picks",
+          "Each piece in the mirror, the same framing every time",
+          "A close-up of the fit issue or the thing you love",
+          "Your verdict on screen after each look",
+          "Walking out with the winner"
+        ],
+        caption: "Wearing a [size 14 in everything]. The [wide-leg jeans] were the surprise winner. Want me to try on anything else?",
+        inbound: "Clothing brands need real-size fit content to cut down on returns. Honest try-ons with your size stated make you valuable for their size-inclusive campaigns.",
+        tags: ["Shop with me", "Try-on", "Real bodies"]
+      },
+      {
+        front: ["Restock", "run."],
+        format: "Reel · 30–45s",
+        hook: "Come with me on my [Costco / Sam's Club] restock run, the stuff our house goes through every month.",
+        script: "Show the bulk items you always buy and why, plus one new thing you're trying. At home, put it all away. The unpacking and organizing at the end is oddly satisfying, and people love seeing how other houses stock up.",
+        film: [
+          "A big cart rolling through the warehouse",
+          "Lifting each staple item into the cart",
+          "The new item you're trying, close-up",
+          "Loading the car or trunk",
+          "Putting it away: pantry, fridge, or garage shelves (sped up)"
+        ],
+        caption: "We go through [3 bags of coffee] a month and I'm not sorry. What's the one thing you always buy in bulk?",
+        inbound: "Household, food, and organization brands love restock content. It shows their product in real use, and the organizing at the end is a natural place for storage brands too.",
+        tags: ["Shop with me", "Restock", "Satisfying"]
+      },
+      {
+        front: ["Shop", "small with me."],
+        format: "Reel · 30–45s",
+        hook: "Shop small with me in [my downtown / the Saturday farmers market].",
+        script: "Visit 2–3 local shops and highlight one thing you love at each. Mention the owner or the story behind the shop if they're happy to be on camera. End with your haul. Local content gets shared by the shops themselves, which puts you in front of their customers.",
+        film: [
+          "Wide shot of the street or market",
+          "Storefront sign or booth for each shop",
+          "Close-up of the item you love at each stop",
+          "A chat with the owner (with their permission)",
+          "The haul laid out at home"
+        ],
+        caption: "Tag your favorite small shop in [your town]. I'll add them to my list.",
+        inbound: "Small businesses and local tourism boards are a great starter-collab market. A shop-small video is a ready-made sample you can send when you pitch them.",
+        tags: ["Shop with me", "Local", "Collab starter"]
+      },
+      {
+        front: ["Shop it,", "then style it."],
+        format: "Reel · 30–60s",
+        hook: "I bought [3 things under $30 / one new rug] and I'm styling them at home.",
+        script: "Show the quick shopping trip, then cut straight to home and style it: the outfit, the shelf, the room corner. Show the before and the after. Viewers love seeing how a purchase actually looks once it's out of the store.",
+        film: [
+          "The 3 items in the store",
+          "The spot at home before (or the outfit before)",
+          "Hands styling it (sped up)",
+          "A slow reveal of the finished look",
+          "Detail close-up of your favorite piece"
+        ],
+        caption: "Same [corner], new life. Which version do you like better?",
+        inbound: "Brands want proof their product looks good in real life, not just on a shelf. This format gives them the full journey, from store to styled, in one video.",
+        tags: ["Shop with me", "Styling", "Before & after"]
+      },
+      {
+        front: ["What's in", "my cart?"],
+        format: "Reel · 20–40s",
+        hook: "What's in my [Amazon / Target app] cart right now, and what I'm actually keeping.",
+        script: "Screen-record your cart and react to each item: why it's in there, how long it's been sitting, and your verdict. Delete a few on camera. Checkout the keepers. Cart checks are quick to film and work great for affiliate links.",
+        film: [
+          "Screen recording scrolling your cart",
+          "Your face reacting (green screen or picture-in-picture)",
+          "Close-up of the delete button on one item",
+          "The final, smaller cart total",
+          "Unboxing the keeper when it arrives (part 2)"
+        ],
+        caption: "That [label maker] has been in my cart since [June]. Links to the keepers are in my [storefront / bio].",
+        inbound: "Amazon and retail affiliate programs reward creators who drive clicks. Cart checks show brands you can influence what people buy without a hard sell.",
+        tags: ["Shop with me", "Online", "Affiliate-friendly"]
+      },
+      {
+        front: ["Shop for", "a room refresh."],
+        format: "Reel · 30–60s",
+        hook: "Shop with me for a [$100 bathroom refresh / my teen's room makeover].",
+        script: "Start with the room as it is and name the budget. Shop for it with a running total. Then put it all together at home and end on the reveal. Room refreshes on a budget are some of the most-saved home content because they feel doable.",
+        film: [
+          "The room before (wide, same angle you'll use for the after)",
+          "The budget on screen as you shop",
+          "Each item going in the cart",
+          "Setting it all up (sped up)",
+          "The after, from the exact same angle"
+        ],
+        caption: "[$96] later. Swipe back to see the before. Which room should I do next?",
+        inbound: "Home brands love creators who can show a transformation on a real budget. The before-and-after is a format they repost and turn into ads.",
+        tags: ["Shop with me", "Home", "Before & after"]
+      }
+    ]
+  },
+
+
+  /* ---------------------------------------------------------------
+     BUCKET 3: DAY IN MY LIFE (routines, vlogs, the everyday)
+     15 cards
+     --------------------------------------------------------------- */
+  {
+    id: "ditl", name: "Day in My Life", color: "trend", shape: "diamond",
+    about: "everyday vlogs and routines that let people into your world.",
+    cards: [
+      {
+        front: ["A day in", "my life as a…"],
+        format: "Reel · 30–60s",
+        hook: "A day in my life as a [working mom who runs two businesses / nurse on night shift / empty nester].",
+        script: "Your role in the hook tells the right people to stop scrolling. Show 6–8 moments from wake-up to bedtime, with a short caption or voiceover for each. Include one moment that surprises people about your life. Specific roles find specific audiences, and those viewers follow.",
+        film: [
+          "Alarm going off, or the first sip of coffee",
+          "Getting ready or heading out the door",
+          "2–3 clips from the middle of your day (work, errands, kids)",
+          "The surprise moment, the thing people wouldn't expect",
+          "Winding down: couch, book, or lights off"
+        ],
+        caption: "People always ask how I [do it all]. The honest answer: [I don't, and that's okay]. What does your day look like?",
+        inbound: "Brands use day-in-the-life content to see where their product could fit naturally. A clearly defined role makes it easy for them to picture you with their target customer.",
+        tags: ["DITL", "Vlog", "Niche"]
+      },
+      {
+        front: ["5 a.m.", "to 9 p.m."],
+        format: "Reel · 30–60s",
+        hook: "My whole [Tuesday / Saturday], start to finish, with the timestamps to prove it.",
+        script: "Put the time on screen for every clip. Keep each clip short, 1–3 seconds, and caption what's happening in a few words. End with a quick line about how the day felt. Timestamps make people curious about your schedule and they keep watching to see the whole day.",
+        film: [
+          "Phone or clock showing the time at wake-up",
+          "Quick routine clips, each with a timestamp",
+          "Lunch from overhead",
+          "The busiest moment of the day",
+          "Bedtime with the final timestamp"
+        ],
+        caption: "[5:12 a.m. to 9:48 p.m.] and somehow the laundry is still not folded. What time does your day start?",
+        inbound: "Timestamped vlogs show brands every product touchpoint in a day: coffee, skincare, cleaning, tech, food. It's a portfolio of placement opportunities in one video.",
+        tags: ["DITL", "Timestamps", "Routine"]
+      },
+      {
+        front: ["The parts", "nobody films."],
+        format: "Reel · 30–45s",
+        hook: "A day in my life as a [mom of 3 / small business owner], but only the parts nobody puts on Instagram.",
+        script: "Film the unglamorous moments: the dishes, the car-line wait, the laundry mountain, eating lunch standing up. Narrate with dry humor. End with one small, real, good moment. This is the anti-aesthetic vlog people relate to most.",
+        film: [
+          "The sink full of dishes",
+          "Waiting in the car line or a drive-thru",
+          "The laundry pile, wide shot",
+          "Eating lunch standing at the counter",
+          "One genuinely sweet moment at the end"
+        ],
+        caption: "The highlight reel is lying to you. This is [Tuesday at our house]. Tell me I'm not alone.",
+        inbound: "Cleaning, household, and convenience brands love unglamorous content because their product solves exactly these moments. Your real life becomes the before in their story.",
+        tags: ["DITL", "Relatable", "Funny"]
+      },
+      {
+        front: ["One second", "every hour."],
+        format: "Reel · 15–25s",
+        hook: "One second from every hour of my [Saturday / birthday / first day of vacation].",
+        script: "Set a reminder every hour and film one second wherever you are. Don't plan the shots. String them together in order with the hour on screen. It's easy to film and surprisingly fun to watch.",
+        film: [
+          "Hourly 1-second clips (set phone reminders)",
+          "At least one clip of your face",
+          "At least one clip of food or drink",
+          "One clip outdoors",
+          "The last clip right before bed"
+        ],
+        caption: "[14 hours, 14 seconds]. Hour 6 was the best part. Guess which one was my favorite?",
+        inbound: "Fast, cinematic montages show you can tell a story through editing, which is a skill brands look for in creators they'd hire to make ads.",
+        tags: ["DITL", "Trend", "Low effort"]
+      },
+      {
+        front: ["Sunday", "reset."],
+        format: "Reel · 30–60s",
+        hook: "Sunday reset so [Monday doesn't win / the week starts calm].",
+        script: "Show your reset routine: laundry, a quick clean, meal prep, planning, and a little self-care. Keep the clips quick and the music calm. End sitting down with a drink in a clean space. Reset videos are relaxing to watch and they get rewatched.",
+        film: [
+          "The messy before (one wide shot)",
+          "Laundry going in, folding (sped up)",
+          "Wiping counters, making the bed",
+          "Meal prep containers lined up",
+          "Sitting down with tea or coffee in the clean space"
+        ],
+        caption: "[3 hours] and a clean kitchen. What's the one thing that makes your week feel reset?",
+        inbound: "Cleaning, home fragrance, and organization brands sponsor reset content all the time. Showing a full reset proves you can feature several products naturally.",
+        tags: ["DITL", "Reset", "Satisfying"]
+      },
+      {
+        front: ["Planned vs.", "what happened."],
+        format: "Reel · 30–45s",
+        hook: "What I planned to do [today / on my day off] vs. what actually happened.",
+        script: "Show your to-do list or plan at the start. Then show the real day: the detours, interruptions, and chaos, checking or crossing out items as you go. End with the final scorecard. The gap between plan and reality is where the humor is.",
+        film: [
+          "The to-do list in close-up at the start",
+          "Each interruption as it happens",
+          "Crossing items off (or not)",
+          "Your face at the chaotic moment",
+          "The final list: what got done"
+        ],
+        caption: "Planned: [8 things]. Did: [3 and a nap]. Be honest, what's your score today?",
+        inbound: "Planner and productivity brands want creators who are honest about how hard planning is. Your relatability makes their solution feel needed instead of preachy.",
+        tags: ["DITL", "Funny", "Relatable"]
+      },
+      {
+        front: ["Romanticize", "a regular day."],
+        format: "Reel · 30–45s",
+        hook: "Romanticizing a completely normal [Wednesday / day at home].",
+        script: "Film ordinary moments the way you'd film a vacation: slow, close-up, golden light. Coffee pouring, sun on the floor, a walk, a candle. Add a calm voiceover or soft music. This gives people permission to slow down, which is why it gets saved.",
+        film: [
+          "Coffee pouring in slow motion",
+          "Sunlight on the floor or kitchen counter",
+          "Hands opening a book or journal",
+          "A short walk outside (feet or the path ahead)",
+          "Candle being lit at night"
+        ],
+        caption: "Nothing special happened today, and that's kind of the point. What's one small thing that made your day?",
+        inbound: "Lifestyle brands (coffee, candles, home, wellness) pay for mood. A romanticized vlog shows you can make an ordinary product feel special.",
+        tags: ["DITL", "Aesthetic", "Calm"]
+      },
+      {
+        front: ["Weekend", "with us."],
+        format: "Reel · 30–60s",
+        hook: "A weekend with [our family of 4 / just me and my husband / me and the dog].",
+        script: "Show the weekend from Friday night to Sunday evening: the plans, the food, the outing, the downtime. One clip per moment, in order. End with what you're grateful for. Weekend vlogs feel like an invitation into your real life.",
+        film: [
+          "Friday night: takeout, a movie, or a fire",
+          "Saturday morning coffee or breakfast",
+          "The outing (a game, the lake, a market)",
+          "A quiet downtime moment",
+          "Sunday evening wind-down"
+        ],
+        caption: "Nothing fancy, just [us]. What did your weekend look like?",
+        inbound: "Family and leisure brands (restaurants, outdoor gear, travel) look for creators who show real weekends. It tells them who your audience spends their free time and money with.",
+        tags: ["DITL", "Weekend", "Family"]
+      },
+      {
+        front: ["After", "hours."],
+        format: "Reel · 30–45s",
+        hook: "What I do after [the kids go to bed / I close up for the day], my second shift.",
+        script: "Show the quiet hours: the side project, the dishes, the planning, the 20 minutes for you. Be honest about whether you're working or resting. End on what you do just for yourself. A lot of your audience lives this exact second shift and will feel seen.",
+        film: [
+          "The house going quiet (lights off in kid's room)",
+          "Laptop opening at the kitchen table",
+          "Tidying up or prepping for tomorrow",
+          "The 20 minutes just for you (a show, a bath, a book)",
+          "Lamp off"
+        ],
+        caption: "My best ideas happen at [9:30 p.m.] apparently. When do you get your quiet time?",
+        inbound: "Brands targeting busy adults want proof that you understand their customers' time pressure. After-hours content makes you the trusted voice for time-saving products.",
+        tags: ["DITL", "Night", "Side hustle"]
+      },
+      {
+        front: ["My morning", "routine, really."],
+        format: "Reel · 30–45s",
+        hook: "My real morning routine as a [school-run mom / 6 a.m. commuter]. Not the 5 a.m. aesthetic one.",
+        script: "Show your actual morning: the snooze, the rush, what you do first, how you get out the door. Name the one habit that saves your morning. Real routines get far more “same!” comments than perfect ones.",
+        film: [
+          "The alarm and the snooze button",
+          "First thing you do (coffee, phone, stretch)",
+          "The rush: lunches, keys, shoes",
+          "The one habit that saves your morning, close-up",
+          "Out the door or into the car"
+        ],
+        caption: "The [night-before lunch packing] is what keeps me sane. What's your morning saver?",
+        inbound: "Morning routines are prime real estate for coffee, skincare, breakfast, and home brands. A believable routine makes a product placement believable too.",
+        tags: ["DITL", "Morning", "Relatable"]
+      },
+      {
+        front: ["What I", "spent today."],
+        format: "Reel · 30–45s",
+        hook: "What I spent in a day as a [family of 4 in a small town / mom with a teen dancer].",
+        script: "Track every purchase from morning to night with a running total on screen. Comment on each one: worth it, not worth it, or unavoidable. End with the total and one thing you'd do differently. Money diaries are compulsively watchable.",
+        film: [
+          "Each purchase moment (coffee, gas, groceries)",
+          "Receipt or app screen in close-up",
+          "Running total on screen after each",
+          "Your reaction to the biggest expense",
+          "End-of-day total with a shrug or a cheer"
+        ],
+        caption: "[$187.42] and [$80] of it was dance shoes. What's the expense that always sneaks up on you?",
+        inbound: "Budgeting apps, banks, and value retailers want creators who talk openly about everyday money. A spending diary shows you can make money talk relatable.",
+        tags: ["DITL", "Money", "Running total"]
+      },
+      {
+        front: ["Errand day", "with me."],
+        format: "Reel · 30–45s",
+        hook: "Run errands with me: [post office, pharmacy, car wash, and a coffee as a reward].",
+        script: "Film each stop with a quick caption. Show what you're picking up and any small win or mishap along the way. End with the reward stop. Errand vlogs are easy to film on a normal day and they feel like hanging out with a friend.",
+        film: [
+          "Your list on your phone or a sticky note",
+          "Getting in the car, seatbelt click",
+          "A short clip at each stop",
+          "A mishap or small win (the line, a sale)",
+          "The reward: the coffee or treat at the end"
+        ],
+        caption: "[4 errands, 1 iced coffee, 0 regrets]. What's your errand-day reward?",
+        inbound: "Errand vlogs naturally include stores, apps, cars, and drinks, so they show brands you can feature their product as part of an ordinary day.",
+        tags: ["DITL", "Errands", "Easy film"]
+      },
+      {
+        front: ["A day in", "my life at…"],
+        format: "Reel · 30–60s",
+        hook: "A day in my life at [47 / 32 / 60], because nobody shows what it really looks like.",
+        script: "Lead with your age and own it. Show the day honestly: the energy, the priorities, what's changed from your 20s. Add a few quick text notes about what you've learned. Age-specific content finds its people fast, and that's a loyal audience.",
+        film: [
+          "You saying your age to the camera",
+          "Your morning routine at this stage of life",
+          "Something you do now that you never did at 25",
+          "A clip with family or friends",
+          "Evening wind-down"
+        ],
+        caption: "[47] and still figuring it out, and loving it. What age are you watching from?",
+        inbound: "Brands with products for a specific age group (skincare, supplements, fashion) need creators who are proud of that age. Owning your age puts you at the top of their list.",
+        tags: ["DITL", "Life stage", "Community"]
+      },
+      {
+        front: ["A day of", "small joys."],
+        format: "Reel · 30–45s",
+        hook: "Every small thing that made me happy on a [rainy Monday / totally random Tuesday].",
+        script: "Film each tiny joy as it happens: a good parking spot, warm laundry, a funny text, a sunset. Number them on screen. End with the biggest one. Feel-good lists are calming to watch and viewers add their own in the comments.",
+        film: [
+          "Each joy as it happens (1–3 seconds each)",
+          "A number on screen for each one",
+          "Your face smiling at one of them",
+          "One joy involving someone else",
+          "The biggest joy, held a beat longer"
+        ],
+        caption: "Number [6] made my whole day. What's one small joy from your day?",
+        inbound: "Brands love being part of someone's happy moments. This format shows how naturally you can make a product feel like a little joy.",
+        tags: ["DITL", "Feel-good", "Gratitude"]
+      },
+      {
+        front: ["When the day", "falls apart."],
+        format: "Reel · 30–45s",
+        hook: "It's [3 p.m.] and today has completely fallen apart. Here's how I reset.",
+        script: "Show what went wrong in a few quick clips, then show your reset: a walk, a shower, a playlist, a clean counter, a call to a friend. End calmer than you started. People save this for their own bad days.",
+        film: [
+          "The chaos: the mess, the email, the spilled coffee",
+          "A deep breath or a pause you leave in",
+          "Your reset step-by-step",
+          "A calmer version of the same space",
+          "You, settled, finishing the day"
+        ],
+        caption: "Bad days happen. My reset is [a walk and a clean sink]. What's yours?",
+        inbound: "Wellness and self-care brands want creators who show realistic coping, not perfection. This positions you for calm, grounded campaigns.",
+        tags: ["DITL", "Reset", "Real"]
+      }
+    ]
+  },
+
+  /* ---------------------------------------------------------------
+     BUCKET 4: REAL LIFE (relatable, honest, storytime)
+     15 cards
+     --------------------------------------------------------------- */
+  {
+    id: "real", name: "Real Life", color: "inbound", shape: "hexagon",
+    about: "honest, relatable stories that make people feel seen.",
+    cards: [
+      {
+        front: ["Expectation", "vs. reality."],
+        format: "Reel · 15–30s",
+        hook: "What I thought [being a dance mom / owning a business] would look like vs. what it actually looks like.",
+        script: "Split it into two halves. The expectation side is shiny and ideal; the reality side is honest and funny. Make the reality specific. The bigger the gap, the funnier it is, and people tag friends who live it too.",
+        film: [
+          "Expectation: a polished, staged version (or a stock-style shot)",
+          "A transition: snap, spin, or hard cut",
+          "Reality: the real version, same angle",
+          "A close-up of the most chaotic detail",
+          "Your face, deadpan, at the end"
+        ],
+        caption: "The [sequins on my kitchen floor] are permanent now. Tag a fellow [dance mom].",
+        inbound: "Expectation-vs-reality is a proven ad format. Showing you can land the comedic timing makes you a natural fit for problem-solution campaigns.",
+        tags: ["Real life", "Trend", "Funny"]
+      },
+      {
+        front: ["Things I", "stopped buying."],
+        format: "Reel · 30–45s",
+        hook: "Things I stopped buying as a [mom of 2 / 40-something / new homeowner], and what I do instead.",
+        script: "List 4–6 things you quit buying, with a quick reason and your swap for each. Keep it non-judgy: it's what works for you. This is one of the most-saved formats in lifestyle because it's practical and a little rebellious.",
+        film: [
+          "Each item, held up or shown in the store",
+          "Your swap, shown right after",
+          "Text on screen for each one",
+          "A close-up of the swap in use",
+          "You at the end with a shrug or a smile"
+        ],
+        caption: "I don't miss [paper towels] at all. What did you stop buying that you don't miss?",
+        inbound: "This format is a goldmine for swap brands (reusables, refills, budget options), because the “instead” spot is a built-in product placement.",
+        tags: ["Real life", "Save bait", "Swaps"]
+      },
+      {
+        front: ["Nobody talks", "about this."],
+        format: "Reel · 30–60s",
+        hook: "The part of [being a mom to a teenager / turning 40 / working with your spouse] that nobody talks about.",
+        script: "Name the thing nobody says out loud. Share how it shows up in your life with one real example. End with what's helped, or simply that you're still figuring it out. Saying the unsaid builds instant trust.",
+        film: [
+          "Close framing, talking straight to camera",
+          "B-roll of the everyday version of this (car line, kitchen, office)",
+          "A quiet beat, looking off-camera",
+          "Hands doing something ordinary as you talk",
+          "A soft ending shot"
+        ],
+        caption: "If you're in this season too, I see you. What's the part nobody warned you about?",
+        inbound: "Brands targeting a specific life stage need creators who speak for it honestly. This shows that your audience trusts you with the real stuff.",
+        tags: ["Real life", "Honest", "Talking"]
+      },
+      {
+        front: ["Storytime:", "how we met."],
+        format: "Reel · 45–90s",
+        hook: "How I met [my husband / my best friend of 20 years], and the part we never tell people.",
+        script: "Tell it like you're telling a friend: where you were, the first impression, and the moment it clicked. Include the funny or surprising detail. Show old photos if you have them. Love-and-friendship stories are some of the most shared storytimes.",
+        film: [
+          "An old photo of the two of you, held up",
+          "Talking head, cozy setting",
+          "B-roll of the place it happened (if you can)",
+          "The two of you now, a quick candid clip",
+          "Ending with a look or a laugh"
+        ],
+        caption: "[19 years] later and he still tells it wrong. How did you meet your person?",
+        inbound: "Storytelling is the top skill brands look for in talking-head creators. A heartfelt storytime proves you can hold attention for 60+ seconds.",
+        tags: ["Real life", "Storytime", "Couple"]
+      },
+      {
+        front: ["Reading my", "old goals."],
+        format: "Reel · 30–60s",
+        hook: "Reading the goals I wrote [5 years ago / last January] out loud. This is humbling.",
+        script: "Find an old journal, note, or vision board. Read each goal and say whether it happened, changed, or completely missed. End with one new goal for this year. Looking back is vulnerable, and people love watching someone react to their past self.",
+        film: [
+          "Finding the old journal or note",
+          "Close-up of your handwriting",
+          "Your reaction to each goal",
+          "A photo or clip of a goal you hit",
+          "Writing one new goal"
+        ],
+        caption: "Past me thought I'd [have it all figured out by now]. Present me is laughing. Ever reread your old goals?",
+        inbound: "Journals, planners, and goal-setting brands love this format. It also shows growth over time, which brands want for long-term ambassador partnerships.",
+        tags: ["Real life", "Reflection", "Vulnerable"]
+      },
+      {
+        front: ["I almost", "quit."],
+        format: "Reel · 45–60s",
+        hook: "I almost quit [posting / my business / going back to school]. Here's what stopped me.",
+        script: "Be specific about the moment you wanted to quit: what happened and how it felt. Then name the one thing that kept you going: a person, a message, a small win. End on where you are now. Comeback stories make people root for you.",
+        film: [
+          "Quiet, close framing for the hard part",
+          "B-roll that shows what the struggle looked like",
+          "The thing that kept you going (a note, a photo, a message)",
+          "Where you are now: a confident, brighter shot",
+          "Direct look into the lens at the end"
+        ],
+        caption: "If you're thinking about quitting [today], read the comments. I'll be in there.",
+        inbound: "Brands want creators with staying power. A comeback story shows resilience and an audience that's invested in you, both green flags for long-term partnerships.",
+        tags: ["Real life", "Comeback", "Story"]
+      },
+      {
+        front: ["Things I", "won't do."],
+        format: "Reel · 30–45s",
+        hook: "Things I won't do anymore as a [mom / creator / business owner], and I'm not sorry.",
+        script: "List 4–5 boundaries with a short reason for each. Keep the tone warm and confident, not preachy. End with the one boundary that changed everything. Boundaries content gets shared because people want permission to set their own.",
+        film: [
+          "Talking head, confident framing",
+          "Each boundary as text on screen",
+          "B-roll that shows each one (phone face down, closed laptop)",
+          "A calm moment you've protected",
+          "Ending with a nod or a smile"
+        ],
+        caption: "Number [4] gave me my evenings back. Which one do you need to hear today?",
+        inbound: "Brands want creators with clear values; it tells them you'll only promote what you believe in, which makes your yes worth more.",
+        tags: ["Real life", "Boundaries", "Share bait"]
+      },
+      {
+        front: ["Behind", "this photo."],
+        format: "Reel · 30–45s",
+        hook: "This [family beach photo / birthday picture] looks perfect. Here's what was actually happening.",
+        script: "Show a nice photo from your camera roll, then tell the chaotic or emotional story behind it: the meltdown, the rain, the 47 takes. End with why you love the photo anyway. It's a fun way to show the real person behind the feed.",
+        film: [
+          "The perfect photo, full screen",
+          "Swipe to the outtakes or behind-the-scenes shots",
+          "Talking head telling the story",
+          "The location now, if you can film it",
+          "Back to the perfect photo at the end"
+        ],
+        caption: "[47 takes] and one meltdown for this picture. Worth it? You tell me.",
+        inbound: "This proves you can make the behind-the-scenes entertaining, a valuable skill for brands that want authentic, unpolished content.",
+        tags: ["Real life", "Storytime", "Photos"]
+      },
+      {
+        front: ["What my ___", "taught me."],
+        format: "Reel · 30–60s",
+        hook: "What [my grandma / my first job / 19 years of marriage] taught me that I still use every day.",
+        script: "Share 3 lessons, each with a quick story or example. Show photos if you have them. End with the lesson you're passing on. Lessons from real people feel warm and wise, and they get saved and sent to family.",
+        film: [
+          "An old photo of the person or place",
+          "Talking head for each lesson",
+          "B-roll of you living each lesson today",
+          "A meaningful object (a recipe card, a ring, a tool)",
+          "A gentle ending shot"
+        ],
+        caption: "[Grandma] would have loved this. What's a lesson someone in your life taught you?",
+        inbound: "Heartfelt storytelling builds deep audience trust. Brands want that trust for emotional campaigns around holidays, Mother's Day, and milestones.",
+        tags: ["Real life", "Family", "Heartfelt"]
+      },
+      {
+        front: ["The tradition", "behind it."],
+        format: "Reel · 30–60s",
+        hook: "Our family's [Christmas Eve / first-day-of-school] tradition, and where it started.",
+        script: "Show the tradition happening, then tell its origin story. Explain why you keep it going. Invite people to share theirs. Traditions feel cozy and nostalgic, and the comments fill up with everyone else's.",
+        film: [
+          "The tradition happening now",
+          "An old photo from when it started",
+          "Close-ups of the details (the food, the decorations)",
+          "Family candid moments",
+          "A wide shot of everyone together"
+        ],
+        caption: "We've done this every year since [2008]. What tradition does your family never skip?",
+        inbound: "Seasonal and family brands plan campaigns around traditions. Showing yours makes you a natural fit for holiday partnerships.",
+        tags: ["Real life", "Seasonal", "Family"]
+      },
+      {
+        front: ["The comment", "that stuck."],
+        format: "Reel · 30–45s",
+        hook: "Someone said [“you're too old to start this” / “that won't last”] to me once. Here's my answer.",
+        script: "Share a comment (online or in real life) that stuck with you. Respond with grace and a little sass. End with what you've proven since. Reply-style content feels like a conversation, and it rallies your supporters.",
+        film: [
+          "The comment as on-screen text (no names)",
+          "Your reaction, a pause or a smirk",
+          "Talking head with your response",
+          "Proof clip: what you've done since",
+          "Ending with a confident look"
+        ],
+        caption: "Still here. Still [posting]. What's the comment you'd love to prove wrong?",
+        inbound: "Brands want creators who handle criticism gracefully, since it means they can trust you with their product and their comment section.",
+        tags: ["Real life", "Reply", "Confidence"]
+      },
+      {
+        front: ["Signs you're", "a ___ mom."],
+        format: "Reel · 15–30s",
+        hook: "Signs you're a [dance mom / small-town mom / boy mom].",
+        script: "List 5–7 hyper-specific signs, each with a quick clip that shows it. The more specific, the funnier and more shareable. End with the most chaotic one. People share these with friends and say “this is literally you.”",
+        film: [
+          "Clip for each sign (bobby pins everywhere, the car snack stash)",
+          "Text on screen for each one",
+          "Your deadpan face between a few clips",
+          "The most chaotic sign, held a beat longer",
+          "Ending with a knowing look"
+        ],
+        caption: "If you have [bobby pins in every room], you're one of us. Tag your fellow [dance mom].",
+        inbound: "Hyper-specific community content shows brands exactly who your audience is. It's a direct match for brands that sell to that group.",
+        tags: ["Real life", "Community", "Share bait"]
+      },
+      {
+        front: ["Unpopular", "opinion."],
+        format: "Reel · 30–45s",
+        hook: "Unpopular opinion: [meal prepping is overrated / a clean house is not the goal].",
+        script: "Pick a lifestyle opinion that's fun to argue about. Give 2–3 quick reasons and one fair point for the other side. Keep it light. People can't resist joining in when they disagree.",
+        film: [
+          "Leaning into the camera for the opinion",
+          "B-roll of the thing in question",
+          "Your “hear me out” hand gesture",
+          "A shot of you living your opinion",
+          "Pointing down to the comments"
+        ],
+        caption: "Ready for the comments. Team [meal prep] or team [figure it out at 5 p.m.]?",
+        inbound: "A playful debate shows brands you can drive engagement while staying brand-safe, the kind of personality they want in conversational ads.",
+        tags: ["Real life", "Hot take", "Comment bait"]
+      },
+      {
+        front: ["My house,", "unstaged."],
+        format: "Reel · 20–40s",
+        hook: "My house at [8 p.m. on a Thursday], no cleaning first.",
+        script: "Walk through your house exactly as it is right now. Narrate what's happening in each room with humor. End with the one spot that's always clean (or never is). Unstaged home tours make people feel much better about their own homes.",
+        film: [
+          "Walking in the front door",
+          "Each room as it is: no tidying",
+          "Close-up of the worst offender",
+          "The one clean spot",
+          "Flopping on the couch at the end"
+        ],
+        caption: "This is what [a house with a teenager and two businesses] looks like on a Thursday. Show me yours. No judgment.",
+        inbound: "Cleaning and home brands love real-life before shots. This proves you're relatable enough for their audience to trust your after.",
+        tags: ["Real life", "Home", "Relatable"]
+      },
+      {
+        front: ["Then", "vs. now."],
+        format: "Reel · 15–30s",
+        hook: "[Me at 25 / our first apartment / our first family vacation] vs. now.",
+        script: "Show the old photo, then the matching now shot. Add a line or two about what's changed and what hasn't. End with a sweet or funny note. Then-and-now posts are nostalgic and highly shareable.",
+        film: [
+          "The old photo, full screen",
+          "Recreate the same pose or spot now",
+          "A quick transition between the two",
+          "A close-up detail that's the same",
+          "A candid laugh at the end"
+        ],
+        caption: "Some things change, some don't ([the hair, apparently]). Show me your then vs. now.",
+        inbound: "Nostalgia content shows brands you can create emotional connection, which is valuable for milestone and anniversary campaigns.",
+        tags: ["Real life", "Nostalgia", "Trend"]
+      }
+    ]
+  },
+
+
+  /* ---------------------------------------------------------------
+     BUCKET 5: FAVES & FINDS (products, UGC, Amazon, affiliate)
+     15 cards
+     --------------------------------------------------------------- */
+  {
+    id: "faves", name: "Faves & Finds", color: "offer", shape: "star",
+    about: "products you love: UGC, finds, and affiliate-friendly posts.",
+    cards: [
+      {
+        front: ["Things that", "just make sense."],
+        format: "Reel · 20–40s",
+        hook: "Things in my house that just make sense for a [busy mom / small kitchen / family that lives in the car].",
+        script: "Show 4–6 products in use, one quick clip each, with almost no talking. Let a short caption explain why each one earns its spot. End with the one you'd buy again first. This is the classic “Amazon finds” format, and it's made for affiliate links.",
+        film: [
+          "Each product in use, 2–3 seconds each",
+          "A satisfying close-up (click, pour, fold, snap)",
+          "The before-problem for at least one product",
+          "Hands-only shots work great here",
+          "The favorite, shown last and held longer"
+        ],
+        caption: "All linked in my [storefront / bio]. Number [3] changed my mornings.",
+        inbound: "Product-in-use clips are exactly what brands hire UGC creators to make. A finds video doubles as a portfolio sample for every product in it.",
+        tags: ["Finds", "Affiliate-friendly", "No talking"]
+      },
+      {
+        front: ["Things I'd", "buy again."],
+        format: "Reel · 30–45s",
+        hook: "Things I've bought in the last [6 months] that I'd buy again in a heartbeat.",
+        script: "Pick 5 purchases across different categories. For each, say what it is, the problem it solved, and how long you've had it. Honest, long-term reviews carry weight because they aren't hype.",
+        film: [
+          "Each item in its real spot at home",
+          "The item in use",
+          "A close-up showing wear (proof you use it)",
+          "Text on screen with the item name",
+          "You holding your #1 at the end"
+        ],
+        caption: "[6 months] in and still obsessed. What's your best purchase this year?",
+        inbound: "Long-term reviews are rare and valuable. Brands look for creators who still use a product months later, because it means real loyalty.",
+        tags: ["Finds", "Review", "Affiliate-friendly"]
+      },
+      {
+        front: ["Under", "$25 finds."],
+        format: "Reel · 20–40s",
+        hook: "[5 / 7] things under $25 that make my [mornings / car / closet] easier.",
+        script: "Show each item with the price on screen. Demo it quickly and give the reason it's worth it in one line. End with the cheapest, most surprising one. Price-capped lists get saved for gift ideas and paydays.",
+        film: [
+          "Each item with its price on screen",
+          "Quick demo of each",
+          "Unboxing or package close-up (optional)",
+          "The surprising cheap one, saved for last",
+          "Your face reacting to the price"
+        ],
+        caption: "Every single one is under [$25]. Links in my [bio]. Which one are you grabbing?",
+        inbound: "Affordable-product brands want creators who make their price point look smart. Budget finds show you can drive purchases at an easy yes price.",
+        tags: ["Finds", "Budget", "Affiliate-friendly"]
+      },
+      {
+        front: ["The morning", "pour."],
+        format: "Reel · 15–25s",
+        hook: "My morning [coffee / matcha / protein shake] routine, start to finish.",
+        script: "Film every step in close-up with satisfying sound: the scoop, the pour, the stir, the ice. No talking, just text for the products you use. End with the first sip. Drink routines are simple to film and endlessly rewatchable.",
+        film: [
+          "Mug or cup on the counter, morning light",
+          "Each ingredient going in (close-up, good sound)",
+          "The pour in slow motion",
+          "Stirring or frothing",
+          "First sip, eyes closed"
+        ],
+        caption: "My non-negotiable [7 a.m. latte]. Everything I use is linked. What's in your mug?",
+        inbound: "Coffee, drinkware, and kitchen brands buy this exact content for ads. A clean, ASMR-style pour is a top UGC portfolio piece.",
+        tags: ["Finds", "ASMR", "UGC sample"]
+      },
+      {
+        front: ["Restock", "my fridge."],
+        format: "Reel · 20–40s",
+        hook: "Restock my [fridge / snack drawer / bathroom cabinet] with me.",
+        script: "Start with the empty space, then refill it piece by piece into containers or bins. Let the sounds carry it. End on the full, organized shot. Restocks are oddly satisfying and a natural showcase for organizing products.",
+        film: [
+          "The empty space, wide",
+          "Unpacking the groceries or supplies",
+          "Filling containers with good sound",
+          "Placing each item in its spot",
+          "The full, finished shot, slow pan"
+        ],
+        caption: "Is there anything more satisfying? Bins are linked in my [storefront].",
+        inbound: "Organization and food brands love restock videos. They're a proven ad format, and making one shows you can produce satisfying, polished product content.",
+        tags: ["Finds", "ASMR", "Organizing"]
+      },
+      {
+        front: ["Three ways", "I use it."],
+        format: "Reel · 20–30s",
+        hook: "Three ways I use my [silk scarf / tote bag / slow cooker] that you haven't thought of.",
+        script: "Show one product used three ways, each with a quick demo. Make the last one the most creative. Versatility makes a product feel like better value, and people save it to try later.",
+        film: [
+          "The product on its own",
+          "Use #1 demo",
+          "Use #2 demo",
+          "Use #3, the creative one",
+          "All three side by side or a quick recap"
+        ],
+        caption: "Number [3] blew my husband's mind. How else would you use it?",
+        inbound: "Brands love creators who show versatility because it justifies the price. This proves you can find new angles on their product.",
+        tags: ["Finds", "Hacks", "UGC sample"]
+      },
+      {
+        front: ["Worth", "the hype?"],
+        format: "Reel · 30–45s",
+        hook: "I tried the viral [mascara / bag / frozen treat]. Is it worth the hype?",
+        script: "Show the hype first (the price or a quick screenshot), then test it honestly in real life. Give pros, cons, and a final verdict. Being honest about viral products builds credibility fast.",
+        film: [
+          "The product in its packaging",
+          "First reaction while opening it",
+          "Testing it in real life",
+          "A close-up of the result",
+          "Your verdict on screen at the end"
+        ],
+        caption: "Final verdict: [7/10, worth it on sale]. Have you tried it?",
+        inbound: "Honest testing builds the kind of trust that makes your future recommendations work. Brands notice creators whose audiences believe their verdicts.",
+        tags: ["Finds", "Viral", "Review"]
+      },
+      {
+        front: ["The unboxing", "brands want."],
+        format: "Reel · 20–40s",
+        hook: "Unboxing my [first gifted PR package / new skincare order] with you.",
+        script: "Open it slowly with good sound. Point out the packaging, first impressions, and one thing you're excited to try. Follow up with a part 2 after you've used it. Clean, honest unboxings are one of the most requested UGC formats.",
+        film: [
+          "The box arriving at the door",
+          "Hands opening it, with good sound",
+          "Each item pulled out and shown to the camera",
+          "Close-up of packaging details",
+          "Your first-try reaction"
+        ],
+        caption: "Thank you [@brand] 🤍 Part 2 after I've tried it for a week. What should I test first?",
+        inbound: "Brands judge creators by their unboxings. Clean shots and a genuine reaction show you'll make their gifted product look great.",
+        tags: ["Finds", "Unboxing", "UGC sample"]
+      },
+      {
+        front: ["The silent", "review."],
+        format: "Reel · 15–25s",
+        hook: "A review of [my new vacuum / this hair tool] with no talking. Just watch.",
+        script: "Let the product speak for itself: show it working with close-ups, sound, and text on screen. End with a one-word verdict. Silent reviews keep people watching because they have to pay attention to follow.",
+        film: [
+          "The product, styled (overhead)",
+          "In use: the main feature",
+          "A satisfying result close-up",
+          "Text on screen for key points",
+          "The one-word verdict at the end"
+        ],
+        caption: "No words needed. Okay, one word: [obsessed]. Linked in my [bio].",
+        inbound: "Silent product demos are a top-performing ad style. This shows brands you can shoot product content that works without a voiceover.",
+        tags: ["Finds", "No talking", "UGC sample"]
+      },
+      {
+        front: ["Gift guide", "for…"],
+        format: "Reel · 30–45s",
+        hook: "Gift guide for [the mom who has everything / teen girls / the husband who says he wants nothing].",
+        script: "Pick 5 gifts at a range of prices. Show each one with a quick reason it fits this person. End with your top pick. Gift guides get saved and come back around every holiday season.",
+        film: [
+          "Each gift styled or in use",
+          "Price on screen for each",
+          "Gift wrapping shot (overhead)",
+          "A reaction if someone opens one (optional)",
+          "The top pick held up at the end"
+        ],
+        caption: "All [5] linked. Who are you shopping for this year?",
+        inbound: "Brands plan gift-guide campaigns months ahead. Creators with a gift-guide track record get invited first.",
+        tags: ["Finds", "Gifts", "Seasonal"]
+      },
+      {
+        front: ["What's", "in my bag?"],
+        format: "Reel · 20–40s",
+        hook: "What's in my [purse / car console / dance-mom bag]?",
+        script: "Dump it all out and go through each item quickly. Explain the essentials, laugh at the weird ones. End with the one thing you'd never leave home without. Bag dumps are a timeless format people love to compare against their own.",
+        film: [
+          "Dumping the bag out on a clean surface (overhead)",
+          "Each item picked up and shown",
+          "The weirdest item, close-up",
+          "Repacking it neatly",
+          "The bag on your shoulder at the end"
+        ],
+        caption: "Why are there [4 lip balms and a granola bar from 2024]? What's in yours?",
+        inbound: "Bag dumps feature lots of products at once (beauty, tech, snacks), which shows brands how naturally you can include them.",
+        tags: ["Finds", "Classic", "Relatable"]
+      },
+      {
+        front: ["Empties:", "the honest review."],
+        format: "Reel · 30–45s",
+        hook: "Products I used up this [month / season]. Would I rebuy them?",
+        script: "Show each empty bottle or container, say what it is, and give a rebuy verdict: yes, no, or maybe. A finished product is proof you actually used it, which makes your opinions believable.",
+        film: [
+          "The pile of empties on the counter",
+          "Holding up each one",
+          "Rebuy verdict on screen",
+          "The new bottle of a yes item",
+          "Tossing the no's into the recycling"
+        ],
+        caption: "Rebuying [3 of 5]. What's a product you'll repurchase forever?",
+        inbound: "Empties prove real usage, the most credible kind of review. Brands want to see their products in your empties.",
+        tags: ["Finds", "Review", "Honest"]
+      },
+      {
+        front: ["30 days", "later."],
+        format: "Reel · 30–45s",
+        hook: "I used [this serum / this planner / this water bottle] every day for 30 days. Here's what happened.",
+        script: "Show day 1 and day 30 side by side. Share what changed, what didn't, and whether you'll keep using it. A long-term test is far more convincing than a first impression.",
+        film: [
+          "Day 1: the product and your starting point",
+          "A few clips from during the 30 days",
+          "Day 30: the same angle and the same light",
+          "Side-by-side comparison",
+          "Your honest verdict"
+        ],
+        caption: "[30 days], [honest results]. Should I try it for 60?",
+        inbound: "Brands value creators who document real results over time. It's the most trusted kind of product proof.",
+        tags: ["Finds", "Results", "Series"]
+      },
+      {
+        front: ["My most-used", "thing."],
+        format: "Reel · 20–30s",
+        hook: "The one [kitchen gadget / app / bag] I use every single day.",
+        script: "Show it in use across your day: morning, afternoon, and night. Say why it beats the alternatives in one line. End with how long you've had it. A single hero product is easy to follow and easy to link.",
+        film: [
+          "The product in its everyday spot",
+          "Morning use",
+          "Afternoon or on-the-go use",
+          "Evening use",
+          "A close-up of the wear and tear (proof of love)"
+        ],
+        caption: "Had it for [3 years] and use it daily. What's the one thing you'd rebuy instantly?",
+        inbound: "A single-product focus is exactly how brand UGC briefs are written, so this video doubles as a pitch sample.",
+        tags: ["Finds", "Hero product", "UGC sample"]
+      },
+      {
+        front: ["Travel", "faves."],
+        format: "Reel · 30–45s",
+        hook: "Everything I pack for [a week in Mexico / a camping trip], carry-on only.",
+        script: "Pack your bag on camera one item at a time, with a quick reason for each. Show how it all fits. End by zipping it up. Packing content gets saved before every trip.",
+        film: [
+          "Empty suitcase or bag (overhead)",
+          "Each item going in",
+          "Packing cubes or rolling technique, close-up",
+          "Zipping it shut",
+          "Rolling it out the door"
+        ],
+        caption: "[7 days], [1 carry-on]. Everything is linked. What's your can't-forget item?",
+        inbound: "Travel brands (luggage, toiletries, clothing) love packing content because it features many products naturally.",
+        tags: ["Finds", "Travel", "Affiliate-friendly"]
+      }
+    ]
+  },
+
+  /* ---------------------------------------------------------------
+     BUCKET 6: TIPS & TRICKS (helpful, saveable lifestyle know-how)
+     15 cards
+     --------------------------------------------------------------- */
+  {
+    id: "tips", name: "Tips & Tricks", color: "teach", shape: "square",
+    about: "helpful how-tos people save and send to friends.",
+    cards: [
+      {
+        front: ["Things I", "wish I knew."],
+        format: "Reel · 30–45s",
+        hook: "Things I wish I knew before [having a teenager / buying our first house / turning 40].",
+        script: "Share 4–5 lessons, each in one sentence with a quick clip. Make one funny and one heartfelt. End with the most important one. Wish-I-knew lists help people in the stage right before yours, and they share them.",
+        film: [
+          "Talking head intro",
+          "A clip for each lesson",
+          "Text on screen for each point",
+          "The heartfelt one with a slower, quieter shot",
+          "A direct look into the camera at the end"
+        ],
+        caption: "Number [4] would have saved me so much stress. What would you add?",
+        inbound: "Brands targeting a specific stage want creators who guide people through it. This makes you a trusted voice for that audience.",
+        tags: ["Tips", "Life stage", "Save bait"]
+      },
+      {
+        front: ["The 10-minute", "tidy."],
+        format: "Reel · 20–40s",
+        hook: "My 10-minute tidy that makes the whole house look clean before [company comes / bedtime].",
+        script: "Run a timer and show your order of attack: counters, pillows, shoes, a quick wipe, a candle. Explain why you do it in that order. Speedy cleaning hacks are saved by every busy parent.",
+        film: [
+          "The messy before, wide",
+          "A timer starting",
+          "Each step, sped up",
+          "The candle being lit",
+          "The after: same angle, timer showing"
+        ],
+        caption: "[10 minutes] and nobody knows the laundry room is a disaster. What's your speed-clean trick?",
+        inbound: "Cleaning and home brands love quick-clean content because it shows their product saving time.",
+        tags: ["Tips", "Cleaning", "Timer"]
+      },
+      {
+        front: ["Hacks for", "busy moms."],
+        format: "Reel · 30–45s",
+        hook: "3 hacks that save me [an hour every morning / my sanity on practice nights].",
+        script: "Show each hack in action with a quick before-and-after or demo. Keep it practical. End with the one that changed everything. Mom hacks are some of the most shared tips content because they help right away.",
+        film: [
+          "Hack 1 demo",
+          "Hack 2 demo",
+          "Hack 3 demo",
+          "A before-and-after for the best one",
+          "Your satisfied face at the end"
+        ],
+        caption: "Number [2] is non-negotiable in our house. Share your best hack below.",
+        inbound: "Brands selling convenience products love hack content. A product can slot right in as the hack itself.",
+        tags: ["Tips", "Mom life", "Share bait"]
+      },
+      {
+        front: ["How I", "meal plan."],
+        format: "Reel · 30–60s",
+        hook: "How I meal plan for [a family of 4 / two busy adults] in [15 minutes] a week.",
+        script: "Walk through your system: where you plan, your go-to meals, how you shop, and the one rule that keeps it easy. Show the plan on screen. Simple systems get saved and copied.",
+        film: [
+          "Planning at the table (notepad or app)",
+          "The written plan in close-up",
+          "Grocery list, or adding items in an app",
+          "Prepping one meal",
+          "The family eating (or the finished plate)"
+        ],
+        caption: "My one rule: [leftovers night every Thursday]. What's your meal-planning secret?",
+        inbound: "Meal-kit, grocery, and kitchen brands look for creators with real systems. Showing yours makes it easy to slot their product in.",
+        tags: ["Tips", "Meal planning", "Systems"]
+      },
+      {
+        front: ["How I", "organize…"],
+        format: "Reel · 30–45s",
+        hook: "How I organize [the pantry / my teen's dance bag / the junk drawer].",
+        script: "Start with the mess. Empty it out, group like items, and set it up with labels or bins. Explain your logic as you go. End on the finished shot. Organizing videos are satisfying and practical at the same time.",
+        film: [
+          "The messy before",
+          "Emptying everything out (sped up)",
+          "Sorting into groups",
+          "Placing items into bins with labels",
+          "The finished space, slow reveal"
+        ],
+        caption: "It's been [2 weeks] and it's still organized. That's a record. What should I organize next?",
+        inbound: "Organizing brands buy and repost this content all the time. It's a strong UGC portfolio piece.",
+        tags: ["Tips", "Organizing", "Before & after"]
+      },
+      {
+        front: ["You're doing", "it wrong."],
+        format: "Reel · 15–25s",
+        hook: "Everyone [loads the dishwasher / folds fitted sheets] like this. That's why it isn't working.",
+        script: "Show the common way first, then pause and name the one thing everyone overlooks. Show the better way in three quick cuts. End on the result. Correction-style tips hook people because they want to know if they're doing it wrong.",
+        film: [
+          "The common way, slightly darker or messier",
+          "A freeze frame or pause",
+          "Talking head naming the fix",
+          "The better way in three quick cuts",
+          "The result, held for 2 seconds"
+        ],
+        caption: "I did this wrong for [years]. Be honest: which way do you do it?",
+        inbound: "Problem, fix, result is the exact structure of a product demo. This shows brands you can land the “aha” moment quickly.",
+        tags: ["Tips", "Correction", "Comment bait"]
+      },
+      {
+        front: ["Screenshot", "this."],
+        format: "Carousel · 6–8 slides",
+        hook: "Screenshot this before your next [beach trip / camping weekend / school year].",
+        script: "Slide 1: the hook over a photo. Slides 2–6: one tip or checklist item per slide, 12 words max. Last slide: “Send this to the friend who [always forgets the sunscreen].” Every slide should earn a save or a share.",
+        film: [
+          "Slide 1 photo: overhead flat lay of the trip gear",
+          "One clean photo per tip (same light, same surface)",
+          "A photo of the finished packed bag or setup",
+          "Keep the top third of each photo clear for text",
+          "Crop everything to 4:5"
+        ],
+        caption: "Save this for [your next trip]. Tag the friend who always forgets something.",
+        inbound: "Carousels show brands you can create saveable, educational content, which is valuable for brands that need to explain how to use their product.",
+        tags: ["Tips", "Carousel", "Save bait"]
+      },
+      {
+        front: ["Money habits", "that stuck."],
+        format: "Reel · 30–45s",
+        hook: "Money habits that actually stuck for our [family of 4 / single-income house].",
+        script: "Share 3–4 simple habits with a real example of each. Keep it encouraging, not preachy. End with the easiest one to start today. Practical money content gets saved, especially when it feels doable.",
+        film: [
+          "Talking head intro",
+          "B-roll for each habit (envelopes, an app, a grocery list)",
+          "Text on screen for each habit",
+          "A real moment of using the habit",
+          "Ending on the easiest one, with a smile"
+        ],
+        caption: "The [no-spend weekend] changed everything for us. What money habit stuck for you?",
+        inbound: "Banking, budgeting, and value-retail brands want creators who make money talk approachable.",
+        tags: ["Tips", "Money", "Practical"]
+      },
+      {
+        front: ["Starting", "from zero."],
+        format: "Reel · 30–45s",
+        hook: "If I were starting [a capsule wardrobe / a morning routine / a skincare routine] from zero, here's exactly what I'd do.",
+        script: "Lay out a 3–4 step plan: what to do first, what to skip, and what to add later. Be specific. Step-by-step plans read as real experience and people save them to follow along.",
+        film: [
+          "A blank notebook or empty closet to start",
+          "Writing out each step (sped up)",
+          "B-roll of each step in action",
+          "The finished setup",
+          "Tapping the plan at the end so people can screenshot it"
+        ],
+        caption: "Step [3] is the one I wish someone had told me. Where are you starting from?",
+        inbound: "Starter brands (beginner kits, basics, entry-level products) need creators who speak to beginners. This shows you can.",
+        tags: ["Tips", "Beginner", "Screenshot bait"]
+      },
+      {
+        front: ["My system", "for…"],
+        format: "Reel · 30–45s",
+        hook: "My system for [laundry for 4 people / keeping track of my teen's schedule].",
+        script: "Show the system in action from start to finish. Explain the one rule that makes it work. End with how much time or stress it saves you. Systems are copyable, which is why people save them.",
+        film: [
+          "The problem: the overflowing basket or the chaotic calendar",
+          "The system step by step",
+          "The tool you use (a bin, an app, a whiteboard)",
+          "The calm result",
+          "You enjoying the saved time"
+        ],
+        caption: "This system gave me back [my Sunday afternoons]. Want me to share my [calendar setup] next?",
+        inbound: "Home and organization brands want creators with real systems their product can plug into.",
+        tags: ["Tips", "Systems", "Practical"]
+      },
+      {
+        front: ["Asked", "every week."],
+        format: "Reel · 45–60s",
+        hook: "You ask me about [my skincare / how I film my content / our camper trips] every week, so here's the full answer.",
+        script: "Answer your most-asked question thoroughly. Show the details. Pin it to your profile afterward so it keeps working. Pinned answers become the first thing new followers see.",
+        film: [
+          "Screen recording of the DMs or comments asking (blur the names)",
+          "Talking head answer",
+          "B-roll for each part of the answer",
+          "A close-up of the key detail",
+          "A “pinned to my profile” text card"
+        ],
+        caption: "Saving everyone a DM. Still have questions about [it]? Drop them below.",
+        inbound: "Pinned answer posts are the first thing brand teams see on your profile. They show what you're known for in seconds.",
+        tags: ["Tips", "FAQ", "Pin to profile"]
+      },
+      {
+        front: ["Style rules", "I break."],
+        format: "Reel · 30–45s",
+        hook: "Style rules I break as a [47-year-old / curvy / petite] woman, and why.",
+        script: "Pick 3–4 old “rules” and show yourself breaking them, with a quick outfit clip for each. Keep it confident and fun. End with your favorite rule to break. Rule-breaking content encourages people to try something new.",
+        film: [
+          "Each rule as text on screen",
+          "An outfit clip breaking each rule",
+          "A full-length mirror shot",
+          "A detail close-up (shoes, jewelry, color pairing)",
+          "Your favorite look, with a spin"
+        ],
+        caption: "[White after Labor Day] forever. Which rule are you breaking?",
+        inbound: "Fashion brands want creators with confident personal style. This shows you can make an outfit feel fresh and relatable.",
+        tags: ["Tips", "Style", "Confidence"]
+      },
+      {
+        front: ["Hosting,", "made easy."],
+        format: "Reel · 30–60s",
+        hook: "How I host [Friendsgiving / a birthday party / book club] without losing my mind.",
+        script: "Show your shortcuts: what you make, what you buy, how you set up, and the one thing you never skip. End with the guests arriving or the table set. Easy hosting tips get saved before every holiday.",
+        film: [
+          "Planning list or text thread",
+          "Shortcuts in action (store-bought plus one homemade thing)",
+          "Setting the table, sped up",
+          "The finished spread, slow pan",
+          "Guests arriving or cheers-ing"
+        ],
+        caption: "My secret: [store-bought everything and one great dip]. What's your hosting shortcut?",
+        inbound: "Home, food, and entertaining brands love hosting content for holiday campaigns. It shows you can style a product into a gathering.",
+        tags: ["Tips", "Hosting", "Seasonal"]
+      },
+      {
+        front: ["Take better", "photos of…"],
+        format: "Reel · 30–45s",
+        hook: "How I take better photos of [my kids / my food / my outfits] on my iPhone.",
+        script: "Show 3–4 quick tips with a bad photo and a better photo for each: light, angle, framing, one setting. End with your favorite shot. Phone photography tips are useful to almost everyone.",
+        film: [
+          "A “before” photo for each tip",
+          "Screen recording of the setting or the angle",
+          "An “after” photo for each tip",
+          "You taking the photo (filmed from the side)",
+          "Your favorite shot full screen at the end"
+        ],
+        caption: "Tip [2] is the one that changed everything for me. Try it and tag me.",
+        inbound: "Tech and accessory brands (phones, tripods, lights) want creators who can teach. Photo tips show you know your gear.",
+        tags: ["Tips", "Photos", "Tech"]
+      },
+      {
+        front: ["Name", "your method."],
+        format: "Reel · 30–40s",
+        hook: "I call this the [Sunday Reset Rule / 3-Clip Morning], and it changed how I [run my week / show up online].",
+        script: "Give a habit you already have a memorable name. Explain it in 3 steps and say the name at least twice. Named methods are easy to remember and share, and they start to become your thing.",
+        film: [
+          "The name on a bold title card",
+          "Talking head explaining the method",
+          "B-roll for each of the 3 steps",
+          "The result of using the method",
+          "The title card again at the end"
+        ],
+        caption: "Try the [Sunday Reset Rule] this week and tell me how it goes.",
+        inbound: "Brands partner with creators who have a recognizable point of view. A named method is something a brand can build a series around.",
+        tags: ["Tips", "Signature", "Talking"]
+      }
+    ]
+  },
+
+
+  /* ---------------------------------------------------------------
+     BONUS DECK: YAP IDEAS (talking-head prompts, opened from the Yap Ideas button)
+     10 cards
+     --------------------------------------------------------------- */
+  {
+    id: "yap", name: "Yap Ideas", color: "yap", shape: "bubble",
+    about: "easy talking-head prompts for low-energy days.",
+    cards: [
+      {
+        front: ["Nobody", "warned me."],
+        format: "Talking head · 45–60s",
+        hook: "Nobody warned me that [having a teenager / my 40s / working with my husband] would be like this.",
+        script: "Talk through 3 things that surprised you: one good, one hard, one funny. Talk like you're catching up with a friend over coffee. Admitting surprise makes you relatable, and viewers in the same stage feel seen.",
+        film: [
+          "Phone at eye level, about an arm's length away",
+          "Window light in front of you",
+          "One B-roll clip for each surprise (optional)",
+          "Leave your natural laughs in"
+        ],
+        caption: "Number 2 hit me out of nowhere. What's something nobody warned you about?",
+        inbound: "Brands targeting a life stage want creators who speak for that audience. A yap that names shared experiences shows them exactly who listens to you.",
+        tags: ["Yap", "Relatable"]
+      },
+      {
+        front: ["Hear me", "out."],
+        format: "Talking head · 30–45s",
+        hook: "Hot take, and hear me out: [brunch / matching outfits / pumpkin spice] is overrated.",
+        script: "Give three playful reasons, then admit the one thing you'd still defend about it. Light disagreement brings people into the comments without anyone feeling attacked.",
+        film: [
+          "Chest-up framing, a little closer than usual",
+          "A quick punch-in on the hot take itself",
+          "B-roll of the thing in question (optional)",
+          "A 1-second straight face at the end"
+        ],
+        caption: "I'm ready for the comments. Defend it if you dare.",
+        inbound: "Brands want creators who can stir up comments in a fun, safe way. This shows you can drive engagement without controversy.",
+        tags: ["Yap", "Hot take"]
+      },
+      {
+        front: ["The stranger", "I'll never forget."],
+        format: "Talking head · 60–90s",
+        hook: "I'll never forget [the woman at the airport / a customer from my first job / the man in the grocery line].",
+        script: "Tell the story: how it started, the twist, and what it taught you. Keep them anonymous. Funny, sweet, or wild all work. Storytime is one of the most-watched yap formats because people stay to hear how it ends.",
+        film: [
+          "Seated, relaxed framing at eye level",
+          "Warm lamp in the background for a cozy feel",
+          "B-roll of the place it happened (optional)",
+          "A quick zoom on the twist"
+        ],
+        caption: "I still think about this one. Who's the stranger you'll never forget?",
+        inbound: "Storytelling is the top skill brands look for in talking-head creators. A gripping storytime proves you can hold attention for 60+ seconds.",
+        tags: ["Yap", "Storytime"]
+      },
+      {
+        front: ["Car", "confessional."],
+        format: "Talking head · 45–90s",
+        hook: "Sitting in the [parking lot / car line] because I need to say this out loud.",
+        script: "Talk about what's really been on your mind this week: a decision, a frustration, a small win, a realization. No script, just three bullet points on a sticky note. Car videos feel private and unfiltered, which makes viewers lean in.",
+        film: [
+          "Park facing a bright sky so your face is evenly lit",
+          "Phone mounted on the dash or vent at eye level",
+          "Engine off to cut the noise",
+          "One clip out the windshield to start or end"
+        ],
+        caption: "I didn't plan to post this, but maybe someone needs it today. What's been on your mind?",
+        inbound: "Car yaps feel personal, and brands value audiences who trust a creator like a friend. They also show you can create anywhere with minimal setup.",
+        tags: ["Yap", "Car video"]
+      },
+      {
+        front: ["A useful", "rant."],
+        format: "Talking head · 30–60s",
+        hook: "Okay, I need to rant about [fitted sheets / group texts / school pickup lines] for a second.",
+        script: "Vent about a real pet peeve, funny, not mean. Then flip it: “So here's what I do instead.” End with the fix. Venting creates energy and agreement; the useful ending makes it worth saving.",
+        film: [
+          "Standing, chest-up framing, a bit more energy",
+          "B-roll of the pet peeve itself",
+          "A slow push-in when you get to the fix",
+          "B-roll of the fix in action"
+        ],
+        caption: "Tell me I'm not the only one. What's the pet peeve you'd rant about?",
+        inbound: "Naming a frustration and pivoting to a fix is the exact structure of a problem-solution ad, so this proves you can deliver it with personality.",
+        tags: ["Yap", "Problem → fix"]
+      },
+      {
+        front: ["Rent-free", "in my head."],
+        format: "Talking head · 30–45s",
+        hook: "Things that live rent-free in my head, like [a waiter in Cancún who called me “mi reina” / my daughter's first recital].",
+        script: "List 4–5 oddly specific memories, phrases, or moments you can't stop thinking about. Keep each one short and funny. Specific, quirky details are endearing and make viewers share their own.",
+        film: [
+          "Cozy setting: couch or kitchen counter",
+          "A number on screen for each item",
+          "A photo or clip for one of them (optional)",
+          "Leave in one genuine laugh"
+        ],
+        caption: "Number 4 has been in there since [2009]. What lives rent-free in your head?",
+        inbound: "Personality is what makes people follow a creator. This shows humor and relatability, which brands want for personality-driven campaigns.",
+        tags: ["Yap", "Humor"]
+      },
+      {
+        front: ["Green", "flags."],
+        format: "Talking head · 30–45s",
+        hook: "Green flags in [a best friend / a husband / a boss] that I'll never ignore again.",
+        script: "Share 4 green flags with a quick real-life example for each. Positive lists are shareable because people send them to the person who has those traits.",
+        film: [
+          "Bright, cheerful window light",
+          "A green flag icon on screen for each point",
+          "B-roll with the person (if they're up for it)",
+          "End on a smile, held for a second"
+        ],
+        caption: "Number 3 is how I know someone's a keeper. Send this to someone who has all four.",
+        inbound: "Uplifting content is extremely brand-safe. It makes you an easy choice for brands that want to be associated with good feelings.",
+        tags: ["Yap", "Positive"]
+      },
+      {
+        front: ["The question", "I dodge."],
+        format: "Talking head · 60–90s",
+        hook: "I usually dodge this question, but today I'm answering it: [how do you balance it all? / why did you start posting?]",
+        script: "Answer a question you get often but rarely answer fully. Be honest and keep it under 90 seconds. Answering what you usually avoid feels like a reward for your followers and builds closeness.",
+        film: [
+          "The question as text on screen first",
+          "Calm, close framing with soft front light",
+          "Slower cuts than usual for a thoughtful tone",
+          "Keep the exhale or smile at the end"
+        ],
+        caption: "Okay, I finally said it. What should I answer next?",
+        inbound: "Openness builds the kind of audience trust brands want to borrow. Honest answers with good boundaries show maturity.",
+        tags: ["Yap", "Vulnerable"]
+      },
+      {
+        front: ["The unfiltered", "debrief."],
+        format: "Talking head · 45–60s",
+        hook: "My unfiltered review of [this week / our camping trip / the dance competition weekend].",
+        script: "Rate it out of 10 in categories: the best part, the worst part, the most unexpected moment, and what you'd do differently. Ratings give a casual yap structure, and viewers love a verdict.",
+        film: [
+          "Talking head for each category",
+          "1–2 second clips from the week for each one",
+          "Category name and score on screen",
+          "A drumroll on the overall score"
+        ],
+        caption: "Overall score: [7/10]. How would you rate your week?",
+        inbound: "Travel, event, and experience brands want creators who review honestly and entertainingly. This is ideal practice for hosted trips.",
+        tags: ["Yap", "Ratings"]
+      },
+      {
+        front: ["Irrationally", "happy."],
+        format: "Talking head · 30–45s",
+        hook: "Small things that make me irrationally happy, like [a clean car / the first sip of coffee / a perfect parking spot].",
+        script: "List 5 tiny joys and say briefly why each one gets you. Feel-good lists are calming and comment-friendly, and viewers instantly add their own.",
+        film: [
+          "Soft, warm light",
+          "A quick 1-second clip of each joy (if you have it)",
+          "Number each joy on screen",
+          "End on your biggest one with a real smile"
+        ],
+        caption: "Number 5 makes my whole day every time. What's yours?",
+        inbound: "Brands love being on someone's happy list because it ties their product to joy, a perfect test piece for lifestyle partnerships.",
+        tags: ["Yap", "Feel-good"]
+      }
+    ]
+  }
+];
+
+
+
+/* =====================================================================
+   EDITING CHECKLIST
+   The "Before you hit post" list on the Edit screen. Change the wording
+   or add a line here.
+   ===================================================================== */
+const EDIT_CHECKLIST = [
+  "Trim the dead air and long pauses",
+  "Hook on screen in the first 2 seconds",
+  "Captions on, with a few key words highlighted",
+  "Music under your voice, not over it",
+  "Sound effects on the big moments",
+  "Cover image picked",
+  "Caption and hashtags ready to paste"
+];
+
+// Timer lengths (in minutes) offered on the Edit screen
+const EDIT_PRESETS = [15, 30, 45, 60];
+
+// The most cards a batch day can hold
+const BATCH_MAX = 5;
+
+
+/* =====================================================================
+   SAVED DATA (stays on this device)
+   We use the browser's "localStorage" to remember your name, timer
+   length, saved cards, posted cards, and your batch day. Wrapped in
+   try/catch so the app still works in private browsing.
+   ===================================================================== */
+const STORAGE_KEY = "contentDeck.v2";
+const OLD_STORAGE_KEY = "contentDeck.v1"; // version 1, used to carry your name over
+
+const DEFAULT_DATA = {
+  name: "",
+  editMinutes: 30,     // your usual editing session
+  welcomeOpen: true,   // is the "How this works" drop-down open? (open on first visit)
+  saved: [],           // card ids like "grwm-3"
+  posted: {},          // card id -> the date you posted it, like "2026-10-06"
+  batch: [],           // up to 5 card ids for Batch Day
+  shotsDone: {},       // "cardId:shotNumber" -> true, for the Batch Day checklist
+  editChecks: {}       // checklist line number -> true, for the Edit screen
+};
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return { ...DEFAULT_DATA, ...JSON.parse(raw) };
+    // First time on version 2: keep the name from version 1
+    const old = JSON.parse(localStorage.getItem(OLD_STORAGE_KEY) || "null");
+    return { ...DEFAULT_DATA, name: (old && old.name) || "" };
+  } catch (err) {
+    return { ...DEFAULT_DATA };
+  }
+}
+
+function saveData() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (err) { /* storage blocked: ignore */ }
+}
+
+let data = loadData();
+
+
+/* =====================================================================
+   APP STATE (what's on screen right now)
+   ===================================================================== */
+const state = {
+  view: "home",
+  bucketIndex: 0,   // which bucket the deck is showing
+  order: [],        // the order of card numbers in that bucket
+  position: 0,      // where we are in that order
+  flipped: false
+};
+
+// The id of the bonus Yap Ideas deck
+const YAP_ID = "yap";
+
+// Quick shortcut for grabbing elements by id
+const $ = (id) => document.getElementById(id);
+
+// Does this person prefer less motion?
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+
+/* =====================================================================
+   HELPERS
+   ===================================================================== */
+
+// Today's date as "YYYY-MM-DD" in the person's own time zone
+function dateKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// "2026-10-06" -> "Oct 6"
+function shortDate(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Shuffle a list into random order (Fisher–Yates shuffle)
+function shuffled(list) {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+const pickOne = (list) => list[Math.floor(Math.random() * list.length)];
+
+// Every card has an id made of its bucket and its number: "grwm-0"
+const cardId = (bucket, index) => `${bucket.id}-${index}`;
+const isPosted = (id) => Boolean(data.posted[id]);
+
+function findCard(id) {
+  const [bucketId, index] = id.split("-");
+  const bucketIndex = BUCKETS.findIndex((b) => b.id === bucketId);
+  const bucket = BUCKETS[bucketIndex];
+  const card = bucket && bucket.cards[Number(index)];
+  return card ? { id, bucket, bucketIndex, cardIndex: Number(index), card } : null;
+}
+
+// Sets a bucket's colors on an element (used by tiles, tabs, card, etc.)
+function applyBucketColors(el, bucket) {
+  el.style.setProperty("--c", `var(--${bucket.color})`);
+  el.style.setProperty("--cd", `var(--${bucket.color}-d)`);
+}
+
+// Writes text into an element, turning [square brackets] into
+// highlighted fill-in-the-blank chips. Screen readers hear "fill in".
+function setRichText(el, text) {
+  el.textContent = "";
+  text.split(/(\[[^\]]+\])/).forEach((part) => {
+    if (!part) return;
+    if (part.startsWith("[") && part.endsWith("]")) {
+      const blank = document.createElement("span");
+      blank.className = "blank";
+      const before = document.createElement("span");
+      before.className = "sr-only";
+      before.textContent = "(fill in, for example: ";
+      const after = document.createElement("span");
+      after.className = "sr-only";
+      after.textContent = ")";
+      blank.append(before, part.slice(1, -1), after);
+      el.appendChild(blank);
+    } else {
+      el.appendChild(document.createTextNode(part));
+    }
+  });
+}
+
+// A small pop-up message at the bottom of the screen
+let toastTimer;
+function showToast(message) {
+  const toast = $("toast");
+  toast.textContent = message;
+  toast.classList.add("is-showing");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("is-showing"), 2200);
+}
+
+// Copies text. Uses the modern clipboard first, then an older backup method.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    const box = document.createElement("textarea");
+    box.value = text;
+    box.setAttribute("readonly", "");
+    box.style.position = "fixed";
+    box.style.opacity = "0";
+    document.body.appendChild(box);
+    box.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    box.remove();
+    return ok;
+  }
+}
+
+const COPY_FAILED = "Couldn't copy. Try pressing and holding the text.";
+
+// The text that gets copied for a card (the [blanks] stay in, ready to fill)
+function cardAsText(bucket, card) {
+  return [
+    `${bucket.name.toUpperCase()} · ${card.format}`,
+    ``,
+    `1. HOOK: ${card.hook}`,
+    `PROMPT: ${card.script}`,
+    ``,
+    `2. WHAT TO FILM:`,
+    ...card.film.map((shot) => `- ${shot}`),
+    ``,
+    `3. CAPTION STARTER: ${card.caption}`,
+    ``,
+    `4. WHY BRANDS LOVE IT: ${card.inbound}`
+  ].join("\n");
+}
+
+// All card ids in the 6 main buckets (Yap Ideas not included)
+function mainCardIds() {
+  const ids = [];
+  BUCKETS.forEach((bucket) => {
+    if (bucket.id === YAP_ID) return;
+    bucket.cards.forEach((_, i) => ids.push(cardId(bucket, i)));
+  });
+  return ids;
+}
+
+
+/* =====================================================================
+   NAVIGATION (switching between screens)
+   ===================================================================== */
+const VIEWS = ["home", "deck", "batch", "edit", "saved", "settings"];
+
+function showView(name) {
+  state.view = name;
+  VIEWS.forEach((v) => { $(`view-${v}`).hidden = v !== name; });
+  document.querySelectorAll(".nav button").forEach((btn) => {
+    if (btn.dataset.view === name) btn.setAttribute("aria-current", "page");
+    else btn.removeAttribute("aria-current");
+  });
+  if (name === "home") renderHome();
+  if (name === "deck") renderDeck();
+  if (name === "batch") renderBatch();
+  if (name === "edit") renderEdit();
+  if (name === "saved") renderSaved();
+  if (name === "settings") renderSettings();
+  window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+}
+
+document.querySelectorAll(".nav button").forEach((btn) => {
+  btn.addEventListener("click", () => showView(btn.dataset.view));
+});
+$("open-settings").addEventListener("click", () => showView("settings"));
+
+
+/* =====================================================================
+   HOME SCREEN
+   ===================================================================== */
+function renderHome() {
+  // Date and greeting
+  const now = new Date();
+  $("today-date").textContent = now.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  const hour = now.getHours();
+  const timeOfDay = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  $("greeting").textContent = `${timeOfDay}, ${data.name || "creator"}`;
+
+  // Welcome drop-down: open or closed, the way the person last left it
+  $("welcome").open = data.welcomeOpen;
+
+  // Bucket guide inside the welcome drop-down
+  const guide = $("bucket-guide-list");
+  guide.innerHTML = "";
+  BUCKETS.forEach((bucket) => {
+    const li = document.createElement("li");
+    const suit = document.createElement("i");
+    suit.className = `suit shape-${bucket.shape}`;
+    applyBucketColors(suit, bucket);
+    const text = document.createElement("span");
+    const strong = document.createElement("strong");
+    strong.textContent = bucket.name;
+    text.append(strong, ` · ${bucket.about}`);
+    li.append(suit, text);
+    guide.appendChild(li);
+  });
+
+  // Posted-so-far progress (all 100 cards, Yap Ideas included)
+  const total = BUCKETS.reduce((sum, b) => sum + b.cards.length, 0);
+  const postedCount = Object.keys(data.posted).filter((id) => findCard(id)).length;
+  $("progress-num").textContent = `${postedCount} of ${total} cards`;
+  $("progress-left").textContent = postedCount === 0 ? "Tap “Posted it” on a card" : `${total - postedCount} fresh ideas left`;
+  $("progress-bar").style.width = `${(postedCount / total) * 100}%`;
+
+  // Bucket tiles
+  const tiles = $("tiles");
+  tiles.innerHTML = "";
+  BUCKETS.forEach((bucket, index) => {
+    if (bucket.id === YAP_ID) return; // Yap Ideas has its own button
+    const posted = bucket.cards.filter((_, i) => isPosted(cardId(bucket, i))).length;
+    const left = bucket.cards.length - posted;
+    const countText = posted === 0 ? `${bucket.cards.length} cards`
+      : left === 0 ? "All posted ✓" : `${left} left · ${posted} posted`;
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "tile";
+    applyBucketColors(tile, bucket);
+    tile.innerHTML = `
+      <span class="suit shape-${bucket.shape}" aria-hidden="true"></span>
+      <span><span class="tile-name display"></span>
+      <span class="tile-count"></span></span>`;
+    tile.querySelector(".tile-name").textContent = bucket.name;
+    tile.querySelector(".tile-count").textContent = countText;
+    tile.setAttribute("aria-label", `${bucket.name}, ${countText}`);
+    tile.addEventListener("click", () => openBucket(index));
+    tiles.appendChild(tile);
+  });
+
+  // Batch Day button
+  const inBatch = cleanBatch().length;
+  $("home-batch-count").textContent = `${inBatch} / ${BATCH_MAX}`;
+  $("home-batch-btn").firstElementChild.textContent = inBatch ? "Your Batch Day" : "Plan a Batch Day";
+}
+
+// Remember whether the welcome drop-down is open or closed
+$("welcome").addEventListener("toggle", () => {
+  data.welcomeOpen = $("welcome").open;
+  saveData();
+});
+
+// "Deal me a card": a random card you haven't posted yet, from any main bucket
+$("draw-btn").addEventListener("click", () => {
+  const fresh = mainCardIds().filter((id) => !isPosted(id));
+  if (fresh.length === 0) {
+    showToast("You've posted every card! Reset them in Settings to go again.");
+    return;
+  }
+  const { bucketIndex, cardIndex } = findCard(pickOne(fresh));
+  openCard(bucketIndex, cardIndex, { putFirst: true });
+  setTimeout(() => setFlipped(true), reduceMotion ? 0 : 450);
+});
+
+$("home-batch-btn").addEventListener("click", () => showView("batch"));
+
+// "Yap Ideas" opens the talking-head deck
+$("yap-btn").addEventListener("click", () => {
+  openBucket(BUCKETS.findIndex((b) => b.id === YAP_ID));
+});
+
+
+/* =====================================================================
+   DECK SCREEN
+   Cards you haven't posted come first, shuffled. Posted cards sit at
+   the back of the bucket (in order) so you can still look them up,
+   but they never come up in the shuffle again.
+   ===================================================================== */
+function buildOrder(bucket) {
+  const indexes = bucket.cards.map((_, i) => i);
+  const fresh = indexes.filter((i) => !isPosted(cardId(bucket, i)));
+  const posted = indexes.filter((i) => isPosted(cardId(bucket, i)));
+  return [...shuffled(fresh), ...posted];
+}
+
+// Opens a bucket with a fresh order
+function openBucket(index) {
+  const bucket = BUCKETS[index];
+  state.bucketIndex = index;
+  state.order = buildOrder(bucket);
+  state.position = 0;
+  state.flipped = false;
+  showView("deck");
+  if (bucket.cards.every((_, i) => isPosted(cardId(bucket, i)))) {
+    showToast("You've posted every card here. They're all still here to look back on.");
+  }
+}
+
+// Opens one specific card (from Deal, Batch Day, or Saved)
+function openCard(bucketIndex, cardIndex, { putFirst = false, flip = false } = {}) {
+  state.bucketIndex = bucketIndex;
+  state.order = buildOrder(BUCKETS[bucketIndex]);
+  if (putFirst) state.order = [cardIndex, ...state.order.filter((i) => i !== cardIndex)];
+  state.position = Math.max(0, state.order.indexOf(cardIndex));
+  state.flipped = flip;
+  showView("deck");
+}
+
+// Builds the bucket tabs along the top
+function renderTabs() {
+  const tabs = $("tabs");
+  tabs.innerHTML = "";
+  BUCKETS.forEach((bucket, index) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "tab";
+    tab.textContent = bucket.name;
+    applyBucketColors(tab, bucket);
+    tab.setAttribute("aria-pressed", String(index === state.bucketIndex));
+    tab.addEventListener("click", () => openBucket(index));
+    tabs.appendChild(tab);
+  });
+  // Slide the tab row so the selected bucket is visible
+  const active = tabs.querySelector('[aria-pressed="true"]');
+  if (active) tabs.scrollLeft = active.offsetLeft - (tabs.clientWidth - active.offsetWidth) / 2;
+}
+
+function renderDeck() {
+  // If the deck was never opened, start with the first bucket
+  if (state.order.length === 0) {
+    state.order = buildOrder(BUCKETS[state.bucketIndex]);
+  }
+  renderTabs();
+  renderCard(true);
+}
+
+const currentCard = () => {
+  const bucket = BUCKETS[state.bucketIndex];
+  const cardIndex = state.order[state.position];
+  return { bucket, cardIndex, card: bucket.cards[cardIndex], id: cardId(bucket, cardIndex) };
+};
+
+// Fills in both sides of the current card
+function renderCard(animate) {
+  const { bucket, card, id } = currentCard();
+  const total = bucket.cards.length;
+  const number = String(state.position + 1).padStart(2, "0");
+  const postedOn = data.posted[id];
+
+  applyBucketColors($("card"), bucket);
+
+  // Front
+  $("front-count").textContent = `${number} / ${String(total).padStart(2, "0")}`;
+  $("front-bucket").textContent = bucket.name;
+  $("front-suit").className = `big-suit shape-${bucket.shape}`;
+  $("front-title").innerHTML = "";
+  $("front-title").append(card.front[0], document.createElement("br"));
+  const em = document.createElement("em");
+  em.textContent = card.front[1];
+  $("front-title").append(em);
+  $("front-title").classList.toggle("is-long", Math.max(card.front[0].length, card.front[1].length) > 12);
+  $("front-stamp").hidden = !postedOn;
+  if (postedOn) $("front-stamp").textContent = `Posted ${shortDate(postedOn)}`;
+  $("card-front").setAttribute("aria-label", `${card.front.join(" ")}${postedOn ? ", already posted" : ""}. Flip card to see the prompt`);
+
+  // Back
+  $("back-suit").className = `suit shape-${bucket.shape}`;
+  $("back-bucket").textContent = bucket.name;
+  $("back-format").textContent = card.format;
+  $("back-posted").hidden = !postedOn;
+  if (postedOn) $("back-posted").textContent = `Posted ${shortDate(postedOn)}`;
+  setRichText($("back-hook"), `“${card.hook}”`);
+  setRichText($("back-script"), card.script);
+  const film = $("back-film");
+  film.innerHTML = "";
+  card.film.forEach((shot) => {
+    const li = document.createElement("li");
+    setRichText(li, shot);
+    film.appendChild(li);
+  });
+  setRichText($("back-caption"), card.caption);
+  $("back-inbound").textContent = card.inbound;
+  $("back-body").scrollTop = 0; // always start at the top of a new card
+  $("back-tags").innerHTML = "";
+  card.tags.forEach((t) => {
+    const span = document.createElement("span");
+    span.textContent = t;
+    $("back-tags").appendChild(span);
+  });
+
+  // Save button
+  const isSaved = data.saved.includes(id);
+  $("save-btn").setAttribute("aria-pressed", String(isSaved));
+  $("save-btn").textContent = isSaved ? "♥" : "♡";
+  $("save-btn").setAttribute("aria-label", isSaved ? "Remove from saved" : "Save this card");
+
+  // Batch Day + Posted it buttons
+  const inBatch = data.batch.includes(id);
+  $("batch-toggle").setAttribute("aria-pressed", String(inBatch));
+  $("batch-toggle").textContent = inBatch ? "In Batch Day ✓" : "+ Batch Day";
+  $("posted-toggle").setAttribute("aria-pressed", String(Boolean(postedOn)));
+  $("posted-toggle").textContent = postedOn ? "Posted ✓" : "Posted it";
+
+  // Counter: how many in this bucket are still fresh
+  const fresh = bucket.cards.filter((_, i) => !isPosted(cardId(bucket, i))).length;
+  $("counter").textContent = fresh === total
+    ? `Card ${state.position + 1} of ${total}`
+    : `Card ${state.position + 1} of ${total} · ${fresh} not posted`;
+  setFlipped(state.flipped);
+
+  // Replay the "draw" animation
+  if (animate && !reduceMotion) {
+    const el = $("card");
+    el.classList.remove("is-drawn");
+    void el.offsetWidth; // restarts the animation
+    el.classList.add("is-drawn");
+  }
+}
+
+// Flips the card. "inert" stops keyboard users from tabbing to the hidden side.
+function setFlipped(flipped) {
+  state.flipped = flipped;
+  $("card").classList.toggle("is-flipped", flipped);
+  $("card-front").inert = flipped;
+  $("card-back").inert = !flipped;
+  // Move keyboard focus to the side that's now showing
+  if (document.activeElement && document.activeElement.closest && document.activeElement.closest("#card")) {
+    (flipped ? $("copy-btn") : $("card-front")).focus({ preventScroll: true });
+  }
+}
+
+function goTo(step) {
+  const total = state.order.length;
+  state.position = (state.position + step + total) % total; // wraps around
+  state.flipped = false;
+  renderCard(true);
+}
+
+// Card buttons
+$("card-front").addEventListener("click", () => setFlipped(true));
+$("flip-back-btn").addEventListener("click", () => setFlipped(false));
+
+// Copy just the caption starter
+$("copy-caption-btn").addEventListener("click", async () => {
+  const ok = await copyText(currentCard().card.caption);
+  showToast(ok ? "Caption copied" : COPY_FAILED);
+});
+
+$("next-btn").addEventListener("click", () => goTo(1));
+$("prev-btn").addEventListener("click", () => goTo(-1));
+
+// Shuffle: only the cards you haven't posted get shuffled
+$("shuffle-btn").addEventListener("click", () => {
+  state.order = buildOrder(BUCKETS[state.bucketIndex]);
+  state.position = 0;
+  state.flipped = false;
+  renderCard(true);
+  showToast("Shuffled. Posted cards stay at the back.");
+});
+
+// Copy the whole card
+$("copy-btn").addEventListener("click", async () => {
+  const { bucket, card } = currentCard();
+  const ok = await copyText(cardAsText(bucket, card));
+  showToast(ok ? "Copied to clipboard" : COPY_FAILED);
+});
+
+// Save or unsave the current card
+$("save-btn").addEventListener("click", () => {
+  const { id } = currentCard();
+  if (data.saved.includes(id)) {
+    data.saved = data.saved.filter((x) => x !== id);
+    showToast("Removed from saved");
+  } else {
+    data.saved.push(id);
+    showToast("Saved");
+  }
+  saveData();
+  renderCard(false);
+});
+
+// Posted it: takes the card out of the shuffle (tap again to undo)
+function togglePosted(id) {
+  if (isPosted(id)) {
+    delete data.posted[id];
+    showToast("Back in the shuffle");
+  } else {
+    data.posted[id] = dateKey();
+    showToast("Nice! That one won't come up in the shuffle again.");
+  }
+  saveData();
+}
+$("posted-toggle").addEventListener("click", () => {
+  togglePosted(currentCard().id);
+  renderCard(false);
+});
+
+// Add to / remove from Batch Day
+function toggleBatch(id) {
+  if (data.batch.includes(id)) {
+    removeFromBatch(id);
+    showToast("Removed from Batch Day");
+    return;
+  }
+  if (cleanBatch().length >= BATCH_MAX) {
+    showToast(`Batch Day is full (${BATCH_MAX} cards). Remove one to add this.`);
+    return;
+  }
+  data.batch.push(id);
+  saveData();
+  showToast(`Added to Batch Day (${data.batch.length} of ${BATCH_MAX})`);
+}
+$("batch-toggle").addEventListener("click", () => {
+  toggleBatch(currentCard().id);
+  renderCard(false);
+});
+
+// Swipe left/right on the card to move through the deck (phones)
+let touchStartX = null;
+$("stack").addEventListener("touchstart", (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+$("stack").addEventListener("touchend", (e) => {
+  if (touchStartX === null) return;
+  const distance = e.changedTouches[0].clientX - touchStartX;
+  touchStartX = null;
+  if (Math.abs(distance) > 50) goTo(distance < 0 ? 1 : -1);
+});
+
+// Keyboard shortcuts on the deck: ← → to move, F to flip
+document.addEventListener("keydown", (e) => {
+  if (state.view !== "deck" || e.target.matches("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "ArrowRight") goTo(1);
+  if (e.key === "ArrowLeft") goTo(-1);
+  if (e.key.toLowerCase() === "f") setFlipped(!state.flipped);
+});
+
+
+/* =====================================================================
+   BATCH DAY
+   Up to 5 cards. Every "What to film" shot from those cards lands in
+   one checklist so you can film them all in one session.
+   ===================================================================== */
+
+// Drops any batch ids that no longer match a card (e.g. after editing content)
+function cleanBatch() {
+  data.batch = data.batch.filter((id) => findCard(id)).slice(0, BATCH_MAX);
+  return data.batch;
+}
+
+function removeFromBatch(id) {
+  data.batch = data.batch.filter((x) => x !== id);
+  Object.keys(data.shotsDone).forEach((key) => {
+    if (key.startsWith(`${id}:`)) delete data.shotsDone[key];
+  });
+  saveData();
+}
+
+// Fills the empty spots with fresh cards, one per bucket where possible
+function fillBatch() {
+  const open = BATCH_MAX - cleanBatch().length;
+  if (open <= 0) return 0;
+  const used = new Set(data.batch.map((id) => id.split("-")[0]));
+  const fresh = mainCardIds().filter((id) => !isPosted(id) && !data.batch.includes(id));
+  const picks = [];
+  // First pass: buckets that aren't in the batch yet
+  shuffled([...new Set(fresh.map((id) => id.split("-")[0]))]).forEach((bucketId) => {
+    if (picks.length >= open || used.has(bucketId)) return;
+    picks.push(pickOne(fresh.filter((id) => id.startsWith(`${bucketId}-`))));
+    used.add(bucketId);
+  });
+  // Second pass: any fresh card, if there's still room
+  shuffled(fresh.filter((id) => !picks.includes(id))).forEach((id) => {
+    if (picks.length < open) picks.push(id);
+  });
+  data.batch.push(...picks);
+  saveData();
+  return picks.length;
+}
+
+function renderBatch() {
+  const items = cleanBatch().map(findCard);
+  const hasCards = items.length > 0;
+  $("batch-empty").hidden = hasCards;
+  $("batch-content").hidden = !hasCards;
+
+  // The 5 slot bars at the top, colored by bucket
+  const slots = $("slots");
+  slots.innerHTML = "";
+  for (let i = 0; i < BATCH_MAX; i++) {
+    const slot = document.createElement("span");
+    slot.className = "slot";
+    if (items[i]) { slot.classList.add("is-filled"); applyBucketColors(slot, items[i].bucket); }
+    slots.appendChild(slot);
+  }
+  if (!hasCards) return;
+
+  $("batch-card-count").textContent = `${items.length} of ${BATCH_MAX}`;
+  $("batch-fill").hidden = items.length >= BATCH_MAX;
+
+  // Your cards
+  const list = $("batch-list");
+  list.innerHTML = "";
+  items.forEach(({ id, bucket, bucketIndex, cardIndex, card }) => {
+    const li = document.createElement("li");
+    li.className = "batch-item";
+    applyBucketColors(li, bucket);
+    li.innerHTML = `
+      <div class="batch-item-top"><span class="back-label"></span><span class="posted-tag" hidden></span></div>
+      <p class="hook display"></p>
+      <div class="saved-actions">
+        <button class="btn btn-ghost btn-sm" type="button" data-action="open">Open card</button>
+        <button class="btn btn-ghost btn-sm posted-toggle" type="button" data-action="posted"></button>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="remove">Remove</button>
+      </div>`;
+    li.querySelector(".back-label").textContent = `${bucket.name} · ${card.format}`;
+    setRichText(li.querySelector(".hook"), `“${card.hook}”`);
+    const postedOn = data.posted[id];
+    const tag = li.querySelector(".posted-tag");
+    tag.hidden = !postedOn;
+    if (postedOn) tag.textContent = `Posted ${shortDate(postedOn)}`;
+    const postedBtn = li.querySelector('[data-action="posted"]');
+    postedBtn.textContent = postedOn ? "Posted ✓" : "Posted it";
+    postedBtn.setAttribute("aria-pressed", String(Boolean(postedOn)));
+
+    li.querySelector('[data-action="open"]').addEventListener("click", () => openCard(bucketIndex, cardIndex, { flip: true }));
+    postedBtn.addEventListener("click", () => { togglePosted(id); renderBatch(); });
+    li.querySelector('[data-action="remove"]').addEventListener("click", () => {
+      removeFromBatch(id);
+      renderBatch();
+      showToast("Removed from Batch Day");
+    });
+    list.appendChild(li);
+  });
+
+  // Shot list, grouped by card
+  const groups = $("shot-groups");
+  groups.innerHTML = "";
+  let totalShots = 0;
+  let doneShots = 0;
+  items.forEach(({ id, bucket, card }, n) => {
+    const group = document.createElement("section");
+    group.className = "shot-group";
+    applyBucketColors(group, bucket);
+    const h3 = document.createElement("h3");
+    h3.className = "display";
+    const suit = document.createElement("i");
+    suit.className = `suit shape-${bucket.shape}`;
+    suit.setAttribute("aria-hidden", "true");
+    h3.append(suit, `${n + 1}. ${card.front[0]} ${card.front[1]}`);
+    const ul = document.createElement("ul");
+    ul.className = "check-list";
+    card.film.forEach((shot, i) => {
+      const key = `${id}:${i}`;
+      totalShots++;
+      if (data.shotsDone[key]) doneShots++;
+      const li = document.createElement("li");
+      const label = document.createElement("label");
+      label.className = "check";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = Boolean(data.shotsDone[key]);
+      const text = document.createElement("span");
+      setRichText(text, shot);
+      box.addEventListener("change", () => {
+        if (box.checked) data.shotsDone[key] = true;
+        else delete data.shotsDone[key];
+        saveData();
+        updateShotProgress();
+      });
+      label.append(box, text);
+      li.appendChild(label);
+      ul.appendChild(li);
+    });
+    group.append(h3, ul);
+    groups.appendChild(group);
+  });
+  updateShotProgress(totalShots, doneShots);
+}
+
+// Updates "8 of 22 shots" and the progress bar
+function updateShotProgress(total, done) {
+  if (total === undefined) {
+    total = 0; done = 0;
+    data.batch.forEach((id) => {
+      const found = findCard(id);
+      if (!found) return;
+      found.card.film.forEach((_, i) => { total++; if (data.shotsDone[`${id}:${i}`]) done++; });
+    });
+  }
+  $("shot-progress").textContent = done === total && total > 0 ? `All ${total} shots filmed!` : `${done} of ${total} shots filmed`;
+  $("shot-bar").style.width = total ? `${(done / total) * 100}%` : "0";
+}
+
+$("batch-fill-empty").addEventListener("click", () => {
+  const added = fillBatch();
+  renderBatch();
+  showToast(added ? `Picked ${added} fresh cards for you` : "No fresh cards left to pick");
+});
+$("batch-fill").addEventListener("click", () => {
+  const added = fillBatch();
+  renderBatch();
+  showToast(added ? `Added ${added} fresh ${added === 1 ? "card" : "cards"}` : "No fresh cards left to pick");
+});
+$("batch-browse").addEventListener("click", () => showView("deck"));
+
+// Copy the whole shot list as plain text (great for the Notes app)
+$("copy-shots").addEventListener("click", async () => {
+  const lines = ["BATCH DAY SHOT LIST", ""];
+  cleanBatch().map(findCard).forEach(({ id, bucket, card }, n) => {
+    lines.push(`${n + 1}. ${bucket.name.toUpperCase()}: ${card.hook}`);
+    card.film.forEach((shot, i) => lines.push(`   ${data.shotsDone[`${id}:${i}`] ? "[x]" : "[ ]"} ${shot}`));
+    lines.push("");
+  });
+  const ok = await copyText(lines.join("\n").trim());
+  showToast(ok ? "Shot list copied" : COPY_FAILED);
+});
+
+$("clear-batch").addEventListener("click", () => {
+  if (!confirm("Clear your Batch Day? Your cards stay in the deck.")) return;
+  data.batch = [];
+  data.shotsDone = {};
+  saveData();
+  renderBatch();
+  showToast("Batch Day cleared");
+});
+
+
+/* =====================================================================
+   EDITING TIMER
+   Pick a length, hit Start. The ring empties as time runs down and
+   turns Barn Red in the last 2 minutes. A soft chime plays at the end.
+   "+5 min" adds time without starting over.
+   ===================================================================== */
+const RING_LENGTH = 578.05; // the ring's circumference (2 × π × 92)
+
+const timer = {
+  minutes: 30,      // the session length you picked
+  running: false,
+  endsAt: 0,        // the clock time when the session will end
+  msLeft: 0,        // time left (used while paused)
+  totalMs: 0        // the full session length, including any +5s
+};
+
+function setLength(minutes) {
+  timer.minutes = minutes;
+  timer.running = false;
+  timer.totalMs = minutes * 60 * 1000;
+  timer.msLeft = timer.totalMs;
+  updateTimer();
+  renderPresets();
+}
+
+function startTimer() {
+  if (timer.msLeft <= 0) timer.msLeft = timer.totalMs;
+  timer.endsAt = Date.now() + timer.msLeft;
+  timer.running = true;
+  updateTimer();
+}
+
+function pauseTimer() {
+  timer.msLeft = Math.max(0, timer.endsAt - Date.now());
+  timer.running = false;
+  updateTimer();
+}
+
+function addFiveMinutes() {
+  const extra = 5 * 60 * 1000;
+  timer.totalMs += extra;
+  if (timer.running) timer.endsAt += extra;
+  else timer.msLeft += extra;
+  updateTimer();
+  showToast("Added 5 minutes");
+}
+
+// The buttons: 15 / 30 / 45 / 60, plus your own length from Settings
+function renderPresets() {
+  const lengths = [...new Set([...EDIT_PRESETS, data.editMinutes])].sort((a, b) => a - b);
+  const wrap = $("presets");
+  wrap.innerHTML = "";
+  lengths.forEach((min) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "preset";
+    btn.textContent = `${min} min`;
+    btn.setAttribute("aria-pressed", String(min === timer.minutes));
+    btn.addEventListener("click", () => {
+      if (timer.running && !confirm("Start over with a new time?")) return;
+      setLength(min);
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+// Redraws the digits, ring, and buttons
+function updateTimer() {
+  const msLeft = timer.running ? Math.max(0, timer.endsAt - Date.now()) : timer.msLeft;
+
+  // Digits as MM:SS (or H:MM:SS for long sessions)
+  const totalSeconds = Math.ceil(msLeft / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+  const s = String(totalSeconds % 60).padStart(2, "0");
+  const digits = h ? `${h}:${m}:${s}` : `${m}:${s}`;
+  $("timer-digits").textContent = digits;
+
+  // Label + button text
+  const started = msLeft < timer.totalMs;
+  $("timer-label").textContent = timer.running ? "Editing…" : started ? "Paused" : "Ready to edit";
+  $("start-btn").textContent = timer.running ? "Pause" : started && msLeft > 0 ? "Resume" : "Start";
+
+  // Ring: full at the start, empty at the end
+  const fractionLeft = timer.totalMs ? msLeft / timer.totalMs : 1;
+  $("ring-fill").style.strokeDashoffset = String(RING_LENGTH * (1 - fractionLeft));
+
+  // Barn Red in the last 2 minutes while running
+  $("timer").classList.toggle("is-urgent", timer.running && msLeft <= 2 * 60 * 1000);
+
+  // Show the time in the browser tab and a dot on the Edit tab while running
+  document.title = timer.running ? `${digits} · The Content Deck` : "The Content Deck";
+  $("run-dot").hidden = !timer.running;
+
+  // Session finished
+  if (timer.running && msLeft === 0) {
+    timer.running = false;
+    timer.msLeft = 0;
+    playChime();
+    showToast("Time's up! Export it and hit post.");
+    updateTimer();
+  }
+}
+
+// A soft two-note chime made in the browser (no sound file needed)
+function playChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new AudioCtx();
+    [660, 880].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = "sine";
+      const t = ctx.currentTime + i * 0.25;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.2, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.65);
+    });
+  } catch (err) { /* sound not available: ignore */ }
+}
+
+$("start-btn").addEventListener("click", () => (timer.running ? pauseTimer() : startTimer()));
+$("reset-btn").addEventListener("click", () => setLength(timer.minutes));
+$("add-five-btn").addEventListener("click", addFiveMinutes);
+
+// Tick 4 times a second so the display never skips a second
+setInterval(() => { if (timer.running) updateTimer(); }, 250);
+
+// The "Before you hit post" checklist
+function renderEdit() {
+  renderPresets();
+  updateTimer();
+  const list = $("edit-checklist");
+  list.innerHTML = "";
+  EDIT_CHECKLIST.forEach((item, i) => {
+    const li = document.createElement("li");
+    const label = document.createElement("label");
+    label.className = "check";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = Boolean(data.editChecks[i]);
+    box.addEventListener("change", () => {
+      if (box.checked) data.editChecks[i] = true;
+      else delete data.editChecks[i];
+      saveData();
+    });
+    const text = document.createElement("span");
+    text.textContent = item;
+    label.append(box, text);
+    li.appendChild(label);
+    list.appendChild(li);
+  });
+}
+
+$("clear-checks").addEventListener("click", () => {
+  data.editChecks = {};
+  saveData();
+  renderEdit();
+  showToast("Checklist cleared for the next edit");
+});
+
+
+/* =====================================================================
+   SAVED SCREEN
+   ===================================================================== */
+function renderSaved() {
+  const list = $("saved-list");
+  list.innerHTML = "";
+  const items = data.saved.map(findCard).filter(Boolean);
+  $("saved-empty").hidden = items.length > 0;
+
+  items.forEach(({ id, bucket, bucketIndex, cardIndex, card }) => {
+    const li = document.createElement("li");
+    li.className = "saved-item";
+    applyBucketColors(li, bucket);
+    li.innerHTML = `
+      <div class="batch-item-top"><span class="back-label"></span><span class="posted-tag" hidden></span></div>
+      <p class="hook display"></p>
+      <p class="prompt"></p>
+      <div class="saved-actions">
+        <button class="btn btn-primary btn-sm" type="button" data-action="open">Open</button>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="batch"></button>
+        <button class="btn btn-ghost btn-sm" type="button" data-action="remove">Remove</button>
+      </div>`;
+    li.querySelector(".back-label").textContent = bucket.name;
+    const postedOn = data.posted[id];
+    const tag = li.querySelector(".posted-tag");
+    tag.hidden = !postedOn;
+    if (postedOn) tag.textContent = `Posted ${shortDate(postedOn)}`;
+    setRichText(li.querySelector(".hook"), `“${card.hook}”`);
+    setRichText(li.querySelector(".prompt"), card.caption);
+    const batchBtn = li.querySelector('[data-action="batch"]');
+    batchBtn.textContent = data.batch.includes(id) ? "In Batch Day ✓" : "+ Batch Day";
+
+    li.querySelector('[data-action="open"]').addEventListener("click", () => openCard(bucketIndex, cardIndex, { flip: true }));
+    batchBtn.addEventListener("click", () => { toggleBatch(id); renderSaved(); });
+    li.querySelector('[data-action="remove"]').addEventListener("click", () => {
+      data.saved = data.saved.filter((x) => x !== id);
+      saveData();
+      renderSaved();
+      showToast("Removed from saved");
+    });
+    list.appendChild(li);
+  });
+}
+
+
+/* =====================================================================
+   SETTINGS SCREEN
+   ===================================================================== */
+function renderSettings() {
+  $("name-input").value = data.name;
+  $("edit-input").value = data.editMinutes;
+  const count = Object.keys(data.posted).length;
+  $("reset-posted-note").textContent = count
+    ? `Put all ${count} posted ${count === 1 ? "card" : "cards"} back into the shuffle.`
+    : "No posted cards yet. When you post one, it leaves the shuffle.";
+  $("reset-posted").disabled = count === 0;
+}
+
+$("settings-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  data.name = $("name-input").value.trim();
+  // Keep the minutes within sensible limits
+  data.editMinutes = Math.min(180, Math.max(1, parseInt($("edit-input").value, 10) || 30));
+  saveData();
+  if (!timer.running) setLength(data.editMinutes); // apply the new length
+  showToast("Settings saved");
+  showView("home");
+});
+
+$("reset-posted").addEventListener("click", () => {
+  if (!confirm("Put every posted card back into the shuffle?")) return;
+  data.posted = {};
+  saveData();
+  renderSettings();
+  showToast("All cards are back in the shuffle");
+});
+
+
+/* =====================================================================
+   START THE APP
+   ===================================================================== */
+setLength(data.editMinutes);
+showView("home");
+</script>
+</body>
+</html>
